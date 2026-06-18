@@ -777,11 +777,13 @@ const PRESETS = {
 };
 
 let currentPreset = 'balanced';
+let lastAppliedPreset = 'balanced';
 
 function applyPreset(name) {
   const preset = PRESETS[name];
   if (!preset) return;
   currentPreset = name;
+  lastAppliedPreset = name;
   preset.breakpoints.forEach((v, i) => { document.getElementById(`br-${i}`).value = v; });
   preset.pcts.forEach((v, i) => { document.getElementById(`th-${i}`).value = v; });
   updateBreakpointLabels();
@@ -792,9 +794,7 @@ function applyPreset(name) {
 }
 
 function resetPreset() {
-  if (currentPreset && PRESETS[currentPreset]) {
-    applyPreset(currentPreset);
-  }
+  applyPreset(lastAppliedPreset);
 }
 
 function updateBreakpointLabels() {
