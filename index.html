@@ -597,19 +597,57 @@ function onManualDrop(ticker) {
 // =====================================================================
 // Market Data
 // =====================================================================
-async function fetchTicker(symbol) {
-  const yahooURL = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=1y&interval=1wk`;
-  const proxyURL = `https://api.allorigins.win/get?url=` + encodeURIComponent(yahooURL);
-  const resp = await fetch(proxyURL);
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  const outer = await resp.json();
-  const data  = JSON.parse(outer.contents);
+
+// Yahoo Finance チャートJSONを解析して {current, high52, dropPct} を返す
+function parseYahooChart(data) {
   const result = data.chart.result[0];
   const current = result.meta.regularMarketPrice;
   const closes  = result.indicators.quote[0].close.filter(v => v !== null && v !== undefined);
+  if (!closes.length) throw new Error('close data empty');
   const high52  = Math.max(...closes);
   const dropPct = (high52 - current) / high52 * 100;
   return { current, high52, dropPct };
+}
+
+async function fetchTicker(symbol) {
+  const yahooURL = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=1y&interval=1wk`;
+
+  // 試みるプロキシのリスト（順番に試す）
+  const strategies = [
+    // 1. corsproxy.io（レスポンスそのまま）
+    async () => {
+      const url = `https://corsproxy.io/?${encodeURIComponent(yahooURL)}`;
+      const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return parseYahooChart(await r.json());
+    },
+    // 2. allorigins.win（contentsにJSONが入る）
+    async () => {
+      const url = `https://api.allorigins.win/get?url=${encodeURIComponent(yahooURL)}`;
+      const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const outer = await r.json();
+      return parseYahooChart(JSON.parse(outer.contents));
+    },
+    // 3. thingproxy.freeboard.io
+    async () => {
+      const url = `https://thingproxy.freeboard.io/fetch/${yahooURL}`;
+      const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return parseYahooChart(await r.json());
+    },
+  ];
+
+  let lastErr = null;
+  for (const strategy of strategies) {
+    try {
+      return await strategy();
+    } catch(e) {
+      lastErr = e;
+      console.warn(`fetchTicker(${symbol}) proxy failed:`, e.message);
+    }
+  }
+  throw new Error(`すべてのプロキシで取得失敗: ${lastErr?.message}`);
 }
 
 function dropClass(pct) {
