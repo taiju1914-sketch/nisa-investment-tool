@@ -599,15 +599,12 @@ function onManualDrop(ticker) {
 // =====================================================================
 
 async function fetchTicker(symbol) {
-  // prices.json はGitHub Actionsが毎日自動更新する同一オリジンのファイル
-  // CORSの問題なし
   const r = await fetch(`./prices.json?v=${Date.now()}`, { signal: AbortSignal.timeout(8000) });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   const data = await r.json();
   if (!data[symbol]) throw new Error(`${symbol}のデータなし`);
   return data[symbol];
 }
-
 function dropClass(pct) {
   if (pct < 5)  return 'green';
   if (pct < 10) return 'yellow';
