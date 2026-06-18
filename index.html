@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NISA投資アドバイスツール</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+    background: #f0f4f8;
+    color: #1a202c;
+    line-height: 1.6;
+    padding: 16px;
+  }
+
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  header {
+    text-align: center;
+    padding: 32px 0 24px;
+  }
+
+  header h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #1a56db;
+    margin-bottom: 6px;
+  }
+
+  header p {
+    color: #64748b;
+    font-size: 0.95rem;
+  }
+
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.04);
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 18px 24px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+  }
+
+  .step-badge {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #1a56db;
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .card-header h2 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #1e293b;
+  }
+
+  .card-body {
+    padding: 20px 24px;
+  }
+
+  /* Upload area */
+  .upload-area {
+    border: 2px dashed #93c5fd;
+    border-radius: 10px;
+    padding: 36px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+    background: #eff6ff;
+  }
+
+  .upload-area:hover, .upload-area.drag-over {
+    background: #dbeafe;
+    border-color: #1a56db;
+  }
+
+  .upload-area .upload-icon {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+  }
+
+  .upload-area p {
+    color: #3b82f6;
+    font-size: 0.95rem;
+    margin-bottom: 4px;
+  }
+
+  .upload-area small {
+    color: #94a3b8;
+    font-size: 0.82rem;
+  }
+
+  #csv-input { display: none; }
+
+  .upload-status {
+    margin-top: 14px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    display: none;
+  }
+
+  .upload-status.success {
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+    display: block;
+  }
+
+  .upload-status.error {
+    background: #fff1f2;
+    color: #9f1239;
+    border: 1px solid #fecdd3;
+    display: block;
+  }
+
+  /* Grid layout */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+  }
+
+  @media (max-width: 600px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .card-body { padding: 16px; }
+    .card-header { padding: 14px 16px; }
+  }
+
+  /* Input fields */
+  .field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .field-group label {
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .field-group label .tag {
+    font-size: 0.72rem;
+    background: #e0e7ff;
+    color: #3730a3;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+
+  .field-group label .tag.cash {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  input[type="number"], input[type="text"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    color: #1e293b;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    background: #fff;
+  }
+
+  input[type="number"]:focus, input[type="text"]:focus {
+    outline: none;
+    border-color: #1a56db;
+    box-shadow: 0 0 0 3px rgba(26,86,219,0.1);
+  }
+
+  input[type="number"].auto-filled {
+    background: #f0fdf4;
+    border-color: #86efac;
+    color: #166534;
+  }
+
+  .input-hint {
+    font-size: 0.78rem;
+    color: #94a3b8;
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 0.92rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+
+  .btn:hover { opacity: 0.88; }
+  .btn:active { transform: scale(0.98); }
+
+  .btn-primary {
+    background: #1a56db;
+    color: #fff;
+  }
+
+  .btn-secondary {
+    background: #e2e8f0;
+    color: #475569;
+  }
+
+  .btn-sm {
+    padding: 7px 14px;
+    font-size: 0.85rem;
+  }
+
+  /* Market data */
+  .ticker-card {
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 16px;
+  }
+
+  .ticker-name {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .ticker-name small {
+    font-size: 0.78rem;
+    font-weight: 400;
+    color: #94a3b8;
+  }
+
+  .price-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 6px;
+  }
+
+  .price-label {
+    font-size: 0.8rem;
+    color: #64748b;
+  }
+
+  .price-value {
+    font-size: 0.98rem;
+    font-weight: 600;
+    color: #1e293b;
+  }
+
+  .drop-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    margin-top: 8px;
+  }
+
+  .drop-badge.green  { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+  .drop-badge.yellow { background: #fefce8; color: #854d0e; border: 1px solid #fde68a; }
+  .drop-badge.orange { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
+  .drop-badge.red    { background: #fff1f2; color: #9f1239; border: 1px solid #fecdd3; }
+
+  .market-status {
+    font-size: 0.85rem;
+    color: #64748b;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .dot.loading { background: #f59e0b; animation: pulse 1.2s infinite; }
+  .dot.success { background: #22c55e; }
+  .dot.error   { background: #ef4444; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .manual-drop-section {
+    margin-top: 14px;
+    padding: 14px;
+    background: #fafafa;
+    border-radius: 8px;
+    border: 1px dashed #e2e8f0;
+  }
+
+  .manual-drop-section label {
+    font-size: 0.84rem;
+    color: #64748b;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .manual-drop-section input {
+    max-width: 160px;
+  }
+
+  /* Recommendation */
+  .rec-box {
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 14px;
+  }
+
+  .rec-box.highlight {
+    background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
+    border: 1.5px solid #bfdbfe;
+  }
+
+  .rec-box.neutral {
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+  }
+
+  .rec-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .rec-amount {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #1a56db;
+    margin-bottom: 4px;
+  }
+
+  .rec-amount.zero {
+    color: #94a3b8;
+  }
+
+  .rec-sub {
+    font-size: 0.84rem;
+    color: #64748b;
+  }
+
+  .rec-explanation {
+    background: #f8fafc;
+    border-left: 3px solid #1a56db;
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    font-size: 0.88rem;
+    color: #475569;
+    line-height: 1.7;
+  }
+
+  /* Settings table */
+  .settings-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+
+  .settings-table th {
+    background: #f1f5f9;
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    color: #475569;
+    font-size: 0.82rem;
+  }
+
+  .settings-table td {
+    padding: 8px 14px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+  }
+
+  .settings-table input[type="number"] {
+    width: 90px;
+    padding: 6px 10px;
+    font-size: 0.88rem;
+  }
+
+  .settings-table tr:last-child td { border-bottom: none; }
+
+  /* Section divider */
+  .section-note {
+    font-size: 0.82rem;
+    color: #94a3b8;
+    margin-top: 10px;
+  }
+
+  /* Refresh button area */
+  .market-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+
+  /* Summary row */
+  .summary-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+
+  .summary-chip {
+    background: #f1f5f9;
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 0.84rem;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .summary-chip strong {
+    color: #1e293b;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>📈 NISA投資アドバイスツール</h1>
+    <p>SBI証券の保有証券CSVをアップロードして、最適な投資額をシミュレーションします</p>
+  </header>
+
+  <!-- Step 1: CSV Upload -->
+  <div class="card">
+    <div class="card-header">
+      <div class="step-badge">1</div>
+      <h2>CSVアップロード</h2>
+    </div>
+    <div class="card-body">
+      <div class="upload-area" id="upload-area" onclick="document.getElementById('csv-input').click()">
+        <div class="upload-icon">📄</div>
+        <p>SBI証券「保有証券CSV」をドロップまたはクリックして選択</p>
+        <small>Shift-JISエンコード対応 · .csv形式</small>
+      </div>
+      <input type="file" id="csv-input" accept=".csv" />
+      <div class="upload-status" id="upload-status"></div>
+    </div>
+  </div>
+
+  <!-- Step 2: Portfolio -->
+  <div class="card">
+    <div class="card-header">
+      <div class="step-badge">2</div>
+      <h2>ポートフォリオ情報</h2>
+    </div>
+    <div class="card-body">
+      <div class="grid-3">
+        <div class="field-group">
+          <label>
+            オール・カントリー評価額
+            <span class="tag">オルカン</span>
+          </label>
+          <input type="number" id="input-orcan" placeholder="例: 500000" min="0" step="1000" />
+          <span class="input-hint">全世界 / オール・カントリー / オルカン</span>
+        </div>
+        <div class="field-group">
+          <label>
+            S&amp;P500評価額
+            <span class="tag">SP500</span>
+          </label>
+          <input type="number" id="input-sp500" placeholder="例: 300000" min="0" step="1000" />
+          <span class="input-hint">S&amp;P500 / 米国株式（全世界除く）</span>
+        </div>
+        <div class="field-group">
+          <label>
+            買い付け余力（円）
+            <span class="tag cash">現金</span>
+          </label>
+          <input type="number" id="input-cash" placeholder="例: 100000" min="0" step="1000" />
+          <span class="input-hint">買付余力 / 預り金</span>
+        </div>
+      </div>
+      <p class="section-note">※ CSVから自動入力された値は緑色で表示されます。手動で上書きも可能です。</p>
+    </div>
+  </div>
+
+  <!-- Step 3: Market Data -->
+  <div class="card">
+    <div class="card-header">
+      <div class="step-badge">3</div>
+      <h2>マーケットデータ（VT / VOO）</h2>
+    </div>
+    <div class="card-body">
+      <div class="market-actions">
+        <button class="btn btn-primary btn-sm" onclick="fetchMarketData()">🔄 価格を取得</button>
+        <div class="market-status" id="market-status">
+          <span class="dot" id="market-dot" style="background:#e2e8f0"></span>
+          <span id="market-status-text">取得前</span>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="ticker-card" id="vt-card">
+          <div class="ticker-name">VT <small>Vanguard Total World Stock ETF</small></div>
+          <div id="vt-data">
+            <div class="manual-drop-section">
+              <label>52週高値からの下落率（手動入力）</label>
+              <input type="number" id="vt-manual-drop" placeholder="例: 12.5" step="0.1" min="0" max="100"
+                     oninput="recalculate()" />
+            </div>
+          </div>
+        </div>
+        <div class="ticker-card" id="voo-card">
+          <div class="ticker-name">VOO <small>Vanguard S&amp;P 500 ETF</small></div>
+          <div id="voo-data">
+            <div class="manual-drop-section">
+              <label>52週高値からの下落率（手動入力）</label>
+              <input type="number" id="voo-manual-drop" placeholder="例: 8.3" step="0.1" min="0" max="100"
+                     oninput="recalculate()" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 4: Recommendation -->
+  <div class="card">
+    <div class="card-header">
+      <div class="step-badge">4</div>
+      <h2>投資推奨額</h2>
+    </div>
+    <div class="card-body">
+      <div class="summary-row" id="summary-row" style="display:none">
+        <div class="summary-chip">買い付け余力 <strong id="chip-cash">—</strong></div>
+        <div class="summary-chip">VT下落率 <strong id="chip-vt-drop">—</strong></div>
+        <div class="summary-chip">VOO下落率 <strong id="chip-voo-drop">—</strong></div>
+      </div>
+      <div id="recommendation-area">
+        <p style="color:#94a3b8;font-size:0.9rem;">ポートフォリオ情報とマーケットデータを入力してください。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 5: Settings -->
+  <div class="card">
+    <div class="card-header">
+      <div class="step-badge">5</div>
+      <h2>設定（下落率しきい値・投資比率）</h2>
+    </div>
+    <div class="card-body">
+      <p style="font-size:0.85rem;color:#64748b;margin-bottom:14px;">
+        下落率に応じた買い付け余力に対する投資割合を設定します。変更すると推奨額が自動更新されます。
+      </p>
+      <table class="settings-table">
+        <thead>
+          <tr>
+            <th>下落率の範囲</th>
+            <th>投資割合（%）</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>5% 未満</td>
+            <td><input type="number" id="th-0" value="0" min="0" max="100" step="5" oninput="recalculate()" /> %</td>
+          </tr>
+          <tr>
+            <td>5% 以上 〜 10% 未満</td>
+            <td><input type="number" id="th-5" value="10" min="0" max="100" step="5" oninput="recalculate()" /> %</td>
+          </tr>
+          <tr>
+            <td>10% 以上 〜 15% 未満</td>
+            <td><input type="number" id="th-10" value="20" min="0" max="100" step="5" oninput="recalculate()" /> %</td>
+          </tr>
+          <tr>
+            <td>15% 以上 〜 20% 未満</td>
+            <td><input type="number" id="th-15" value="35" min="0" max="100" step="5" oninput="recalculate()" /> %</td>
+          </tr>
+          <tr>
+            <td>20% 以上</td>
+            <td><input type="number" id="th-20" value="50" min="0" max="100" step="5" oninput="recalculate()" /> %</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+// =====================================================================
+// State
+// =====================================================================
+const state = {
+  vtDrop: null,
+  vooDrop: null,
+};
+
+// =====================================================================
+// CSV Upload
+// =====================================================================
+const uploadArea = document.getElementById('upload-area');
+const csvInput   = document.getElementById('csv-input');
+
+uploadArea.addEventListener('dragover', e => {
+  e.preventDefault();
+  uploadArea.classList.add('drag-over');
+});
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('drag-over'));
+uploadArea.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadArea.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) processCSV(file);
+});
+csvInput.addEventListener('change', () => {
+  if (csvInput.files[0]) processCSV(csvInput.files[0]);
+});
+
+function processCSV(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const text = e.target.result;
+      parseCSV(text, file.name);
+    } catch(err) {
+      showUploadStatus('error', 'CSVの解析に失敗しました: ' + err.message);
+    }
+  };
+  reader.onerror = () => showUploadStatus('error', 'ファイルの読み込みに失敗しました。');
+  reader.readAsText(file, 'Shift-JIS');
+}
+
+// CSVの1行をフィールド配列に分割（クォート対応）
+function splitCSVLine(line) {
+  const fields = [];
+  let cur = '';
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      if (inQ && line[i+1] === '"') { cur += '"'; i++; }
+      else inQ = !inQ;
+    } else if (c === ',' && !inQ) {
+      fields.push(cur.trim());
+      cur = '';
+    } else {
+      cur += c;
+    }
+  }
+  fields.push(cur.trim());
+  return fields;
+}
+
+function parseNum(str) {
+  const n = parseInt(String(str).replace(/,/g, ''), 10);
+  return isNaN(n) ? null : n;
+}
+
+function parseCSV(text, filename) {
+  const lines = text.split(/\r?\n/);
+
+  let orcan = null;
+  let sp500 = null;
+  let cash  = null;
+
+  const isOrcan = str => /全世界|オール.?カントリー|オルカン/i.test(str);
+  const isSP500 = str => /S.?P.?500|米国株式/i.test(str) && !/全世界/i.test(str);
+  const isCash  = str => /買付余力|買い付け余力|預り金|MRF/i.test(str);
+
+  // 評価額列インデックスを記憶（ヘッダー行ごとに更新）
+  let evalColIdx = -1;
+
+  // フォールバック: 行内の最大数値（1000〜100,000,000）
+  function extractMax(fields) {
+    const nums = fields.map(f => parseNum(f)).filter(n => n !== null && n >= 1000 && n <= 100_000_000);
+    return nums.length ? Math.max(...nums) : null;
+  }
+
+  // フォールバック: 行内の最初の正数値
+  function extractFirst(fields) {
+    const nums = fields.map(f => parseNum(f)).filter(n => n !== null && n > 0 && n < 100_000_000);
+    return nums.length ? nums[0] : null;
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim()) continue;
+
+    const fields = splitCSVLine(line);
+
+    // ヘッダー行検出: 「評価額」列を探す
+    const evalIdx = fields.findIndex(f => /評価額/.test(f) && !/評価損益/.test(f));
+    if (evalIdx >= 0) {
+      evalColIdx = evalIdx;
+      continue;
+    }
+
+    // 買い付け余力
+    if (cash === null && isCash(line)) {
+      // 同行に数値があればそれ、なければ次行から取得
+      const v = extractFirst(fields.slice(1)) ?? extractFirst(splitCSVLine(lines[i+1] || ''));
+      if (v !== null) cash = v;
+      continue;
+    }
+
+    // 銘柄行: キーワードマッチ
+    if (orcan === null && isOrcan(line)) {
+      // 列インデックスが分かっていれば優先
+      const v = (evalColIdx >= 0 && fields[evalColIdx])
+        ? parseNum(fields[evalColIdx])
+        : extractMax(fields);
+      if (v !== null) orcan = v;
+    }
+    if (sp500 === null && isSP500(line)) {
+      const v = (evalColIdx >= 0 && fields[evalColIdx])
+        ? parseNum(fields[evalColIdx])
+        : extractMax(fields);
+      if (v !== null) sp500 = v;
+    }
+  }
+
+  let found = [];
+  if (orcan !== null) { setAutoFill('input-orcan', orcan); found.push('オルカン'); }
+  if (sp500 !== null) { setAutoFill('input-sp500', sp500); found.push('S&P500'); }
+  if (cash  !== null) { setAutoFill('input-cash',  cash);  found.push('買い付け余力'); }
+
+  if (found.length === 0) {
+    showUploadStatus('error',
+      `「${filename}」を読み込みましたが、対象データが見つかりませんでした。手動で入力してください。`);
+  } else {
+    showUploadStatus('success',
+      `「${filename}」を読み込みました。自動入力: ${found.join('、')}`);
+  }
+
+  recalculate();
+}
+
+function setAutoFill(id, value) {
+  const el = document.getElementById(id);
+  el.value = value;
+  el.classList.add('auto-filled');
+}
+
+function showUploadStatus(type, msg) {
+  const el = document.getElementById('upload-status');
+  el.className = 'upload-status ' + type;
+  el.textContent = msg;
+}
+
+// =====================================================================
+// Market Data Fetch
+// =====================================================================
+async function fetchTicker(symbol) {
+  const yahooURL = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=1y&interval=1wk`;
+  const proxyURL = `https://api.allorigins.win/get?url=` + encodeURIComponent(yahooURL);
+
+  const resp = await fetch(proxyURL);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const outer = await resp.json();
+  const data = JSON.parse(outer.contents);
+
+  const result = data.chart.result[0];
+  const current = result.meta.regularMarketPrice;
+  const closes  = result.indicators.quote[0].close.filter(v => v !== null && v !== undefined);
+  const high52   = Math.max(...closes);
+  const dropPct  = (high52 - current) / high52 * 100;
+
+  return { current, high52, dropPct };
+}
+
+function dropBadgeClass(pct) {
+  if (pct < 5)  return 'green';
+  if (pct < 10) return 'yellow';
+  if (pct < 15) return 'orange';
+  return 'red';
+}
+
+function dropArrow(pct) {
+  if (pct >= 15) return '▼▼';
+  if (pct >= 10) return '▼';
+  if (pct >= 5)  return '↘';
+  return '→';
+}
+
+function renderTickerData(containerId, manualInputId, info) {
+  const container = document.getElementById(containerId);
+  if (!info) {
+    container.innerHTML = `
+      <div class="manual-drop-section">
+        <label>データ取得失敗 — 52週高値からの下落率（手動入力）</label>
+        <input type="number" id="${manualInputId}" placeholder="例: 12.5"
+               step="0.1" min="0" max="100" oninput="recalculate()" />
+      </div>`;
+    return;
+  }
+  const cls = dropBadgeClass(info.dropPct);
+  container.innerHTML = `
+    <div class="price-row">
+      <span class="price-label">現在値</span>
+      <span class="price-value">$${info.current.toFixed(2)}</span>
+    </div>
+    <div class="price-row">
+      <span class="price-label">52週高値</span>
+      <span class="price-value">$${info.high52.toFixed(2)}</span>
+    </div>
+    <div>
+      <span class="drop-badge ${cls}">
+        ${dropArrow(info.dropPct)} 高値比 ${info.dropPct.toFixed(2)}% 下落
+      </span>
+    </div>`;
+}
+
+async function fetchMarketData() {
+  const dot    = document.getElementById('market-dot');
+  const txt    = document.getElementById('market-status-text');
+
+  dot.className = 'dot loading';
+  txt.textContent = '取得中...';
+
+  let vtInfo  = null;
+  let vooInfo = null;
+
+  try {
+    vtInfo = await fetchTicker('VT');
+  } catch(e) {
+    console.warn('VT fetch failed:', e);
+  }
+
+  try {
+    vooInfo = await fetchTicker('VOO');
+  } catch(e) {
+    console.warn('VOO fetch failed:', e);
+  }
+
+  if (vtInfo || vooInfo) {
+    dot.className = 'dot success';
+    txt.textContent = '取得成功 (' + new Date().toLocaleTimeString('ja-JP') + ')';
+  } else {
+    dot.className = 'dot error';
+    txt.textContent = '取得失敗 — 手動で入力してください';
+  }
+
+  renderTickerData('vt-data',  'vt-manual-drop',  vtInfo);
+  renderTickerData('voo-data', 'voo-manual-drop', vooInfo);
+
+  state.vtDrop  = vtInfo  ? vtInfo.dropPct  : null;
+  state.vooDrop = vooInfo ? vooInfo.dropPct : null;
+
+  recalculate();
+}
+
+// =====================================================================
+// Thresholds
+// =====================================================================
+function getThresholds() {
+  return {
+    0:  parseFloat(document.getElementById('th-0').value)  || 0,
+    5:  parseFloat(document.getElementById('th-5').value)  || 0,
+    10: parseFloat(document.getElementById('th-10').value) || 0,
+    15: parseFloat(document.getElementById('th-15').value) || 0,
+    20: parseFloat(document.getElementById('th-20').value) || 0,
+  };
+}
+
+function getPct(drop, thresholds) {
+  if (drop === null || isNaN(drop)) return 0;
+  if (drop < 5)  return thresholds[0]  / 100;
+  if (drop < 10) return thresholds[5]  / 100;
+  if (drop < 15) return thresholds[10] / 100;
+  if (drop < 20) return thresholds[15] / 100;
+  return thresholds[20] / 100;
+}
+
+// =====================================================================
+// Recalculate & Render Recommendation
+// =====================================================================
+function recalculate() {
+  const cash  = parseFloat(document.getElementById('input-cash').value)  || 0;
+  const orcan = parseFloat(document.getElementById('input-orcan').value) || 0;
+  const sp500 = parseFloat(document.getElementById('input-sp500').value) || 0;
+
+  // Resolve drop values: auto-fetched takes priority, then manual
+  let vtDrop  = state.vtDrop;
+  let vooDrop = state.vooDrop;
+
+  if (vtDrop === null) {
+    const v = parseFloat(document.getElementById('vt-manual-drop') ?
+      document.getElementById('vt-manual-drop').value : '');
+    vtDrop = isNaN(v) ? null : v;
+  }
+  if (vooDrop === null) {
+    const v = parseFloat(document.getElementById('voo-manual-drop') ?
+      document.getElementById('voo-manual-drop').value : '');
+    vooDrop = isNaN(v) ? null : v;
+  }
+
+  const thresholds = getThresholds();
+  const vtPct  = getPct(vtDrop,  thresholds);
+  const vooPct = getPct(vooDrop, thresholds);
+
+  const recArea  = document.getElementById('recommendation-area');
+  const summRow  = document.getElementById('summary-row');
+
+  // Summary chips
+  if (cash > 0 || vtDrop !== null || vooDrop !== null) {
+    summRow.style.display = 'flex';
+    document.getElementById('chip-cash').textContent    = cash > 0 ? fmt(cash) + '円' : '未入力';
+    document.getElementById('chip-vt-drop').textContent  = vtDrop  !== null ? vtDrop.toFixed(2) + '%' : '未入力';
+    document.getElementById('chip-voo-drop').textContent = vooDrop !== null ? vooDrop.toFixed(2) + '%' : '未入力';
+  }
+
+  if (cash <= 0) {
+    recArea.innerHTML = `<p style="color:#94a3b8;font-size:0.9rem;">買い付け余力を入力してください。</p>`;
+    return;
+  }
+  if (vtDrop === null && vooDrop === null) {
+    recArea.innerHTML = `<p style="color:#94a3b8;font-size:0.9rem;">VT・VOOの下落率を取得または手動入力してください。</p>`;
+    return;
+  }
+
+  const vtTriggered  = vtDrop  !== null && vtPct  > 0;
+  const vooTriggered = vooDrop !== null && vooPct > 0;
+
+  let orcanBuy = 0;
+  let sp500Buy = 0;
+  let explanation = '';
+
+  if (!vtTriggered && !vooTriggered) {
+    // No action
+    explanation = `VT・VOOともに下落率が${getThresholds()[5]}%未満のため、今回は購入推奨なしです。`;
+  } else if (vtTriggered && !vooTriggered) {
+    // Only VT triggers → buy orcan with vtPct
+    const total = Math.round(cash * vtPct);
+    orcanBuy = total;
+    explanation = `VTが52週高値から${vtDrop !== null ? vtDrop.toFixed(2) : '—'}%下落しています。`
+      + `買い付け余力の${(vtPct*100).toFixed(0)}%（${fmt(total)}円）をオール・カントリーに投資することを推奨します。`;
+  } else if (!vtTriggered && vooTriggered) {
+    // Only VOO triggers → buy sp500 with vooPct
+    const total = Math.round(cash * vooPct);
+    sp500Buy = total;
+    explanation = `VOOが52週高値から${vooDrop !== null ? vooDrop.toFixed(2) : '—'}%下落しています。`
+      + `買い付け余力の${(vooPct*100).toFixed(0)}%（${fmt(total)}円）をS&P500に投資することを推奨します。`;
+  } else {
+    // Both trigger → total = cash × max(vtPct, vooPct), split by eval ratio
+    const maxPct = Math.max(vtPct, vooPct);
+    const total  = Math.round(cash * maxPct);
+    const totalEval = orcan + sp500;
+
+    if (totalEval <= 0) {
+      // Fallback: 50/50 split if no eval data
+      orcanBuy = Math.round(total / 2);
+      sp500Buy = total - orcanBuy;
+      explanation = `VT・VOOともに下落しています。評価額が未入力のため均等配分とし、合計${fmt(total)}円（買い付け余力の${(maxPct*100).toFixed(0)}%）を投資します。`;
+    } else {
+      const orcanRatio = orcan / totalEval;
+      const sp500Ratio = sp500 / totalEval;
+      orcanBuy = Math.round(total * orcanRatio);
+      sp500Buy = total - orcanBuy;
+      explanation = `VT・VOOともに下落しています。買い付け余力の${(maxPct*100).toFixed(0)}%（${fmt(total)}円）を`
+        + `現在の評価額比率（オルカン ${(orcanRatio*100).toFixed(1)}% : S&P500 ${(sp500Ratio*100).toFixed(1)}%）で按分します。`;
+    }
+  }
+
+  // Render
+  let html = '<div class="grid-2" style="margin-bottom:16px">';
+
+  if (orcanBuy > 0) {
+    html += `
+      <div class="rec-box highlight">
+        <div class="rec-title">オール・カントリー</div>
+        <div class="rec-amount">${fmt(orcanBuy)} 円</div>
+        <div class="rec-sub">VT 下落率: ${vtDrop !== null ? vtDrop.toFixed(2) + '%' : '—'}</div>
+      </div>`;
+  } else {
+    html += `
+      <div class="rec-box neutral">
+        <div class="rec-title">オール・カントリー</div>
+        <div class="rec-amount zero">購入なし</div>
+        <div class="rec-sub">下落率未達または未取得</div>
+      </div>`;
+  }
+
+  if (sp500Buy > 0) {
+    html += `
+      <div class="rec-box highlight">
+        <div class="rec-title">S&amp;P500</div>
+        <div class="rec-amount">${fmt(sp500Buy)} 円</div>
+        <div class="rec-sub">VOO 下落率: ${vooDrop !== null ? vooDrop.toFixed(2) + '%' : '—'}</div>
+      </div>`;
+  } else {
+    html += `
+      <div class="rec-box neutral">
+        <div class="rec-title">S&amp;P500</div>
+        <div class="rec-amount zero">購入なし</div>
+        <div class="rec-sub">下落率未達または未取得</div>
+      </div>`;
+  }
+
+  html += '</div>';
+  html += `<div class="rec-explanation">${explanation}</div>`;
+
+  recArea.innerHTML = html;
+}
+
+// =====================================================================
+// Helpers
+// =====================================================================
+function fmt(n) {
+  return Math.round(n).toLocaleString('ja-JP');
+}
+
+// Trigger recalculate when portfolio fields change
+['input-orcan', 'input-sp500', 'input-cash'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => {
+    document.getElementById(id).classList.remove('auto-filled');
+    recalculate();
+  });
+});
+</script>
+</body>
+</html>
