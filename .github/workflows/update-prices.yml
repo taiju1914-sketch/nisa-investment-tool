@@ -14,37 +14,60 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fetch prices from Stooq
+      - name: Fetch prices
         run: |
           python3 << 'EOF'
           import urllib.request, json, sys
           from datetime import datetime
 
-          def fetch(symbol):
-              url = f"https://stooq.com/q/d/l/?s={symbol.lower()}.us&i=d"
-              req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+          def fetch_yahoo(symbol):
+              url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=1y&interval=1d"
+              req = urllib.request.Request(url, headers={
+                  "User-Agent": "Mozilla/5.0",
+                  "Accept": "application/json"
+              })
               with urllib.request.urlopen(req, timeout=30) as r:
-                  text = r.read().decode("utf-8")
-              lines = [l for l in text.strip().split("\n")[1:] if l.strip()]
-              closes = [float(l.split(",")[4]) for l in lines]
-              closes = [v for v in closes if v > 0]
-              current = closes[-1]
-              high52  = max(closes)
-              drop    = (high52 - current) / high52 * 100
+                  data = json.loads(r.read().decode("utf-8"))
+              result = data["chart"]["result"][0]
+              current = result["meta"]["regularMarketPrice"]
+              closes = [v for v in result["indicators"]["quote"][0]["close"] if v]
+              high52 = max(closes)
+              drop = (high52 - current) / high52 * 100
+              return {"current": round(current, 2), "high52": round(high52, 2), "dropPct": round(drop, 4)}
+
+          def fetch_yahoo2(symbol):
+              url = f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}?range=1y&interval=1d"
+              req = urllib.request.Request(url, headers={
+                  "User-Agent": "Mozilla/5.0",
+                  "Accept": "application/json"
+              })
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  data = json.loads(r.read().decode("utf-8"))
+              result = data["chart"]["result"][0]
+              current = result["meta"]["regularMarketPrice"]
+              closes = [v for v in result["indicators"]["quote"][0]["close"] if v]
+              high52 = max(closes)
+              drop = (high52 - current) / high52 * 100
               return {"current": round(current, 2), "high52": round(high52, 2), "dropPct": round(drop, 4)}
 
           result = {}
           for sym in ["VT", "VOO"]:
-              try:
-                  result[sym] = fetch(sym)
-                  print(f"{sym}: {result[sym]}")
-              except Exception as e:
-                  print(f"ERROR {sym}: {e}", file=sys.stderr)
+              for fetch_fn in [fetch_yahoo, fetch_yahoo2]:
+                  try:
+                      result[sym] = fetch_fn(sym)
+                      print(f"{sym}: {result[sym]}")
+                      break
+                  except Exception as e:
+                      print(f"ERROR {sym} ({fetch_fn.__name__}): {e}", file=sys.stderr)
 
           result["updatedAt"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
           with open("prices.json", "w") as f:
               json.dump(result, f, indent=2)
           print("Saved prices.json")
+
+          if "VT" not in result or "VOO" not in result:
+              print("ERROR: 一部データ取得失敗", file=sys.stderr)
+              sys.exit(1)
           EOF
 
       - name: Commit and push
