@@ -190,6 +190,8 @@
   }
   .preset-btn:hover { border-color: #1a56db; color: #1a56db; }
   .preset-btn.active { background: #1a56db; border-color: #1a56db; color: #fff; }
+  .preset-btn.reset-btn { border-color: #cbd5e1; color: #94a3b8; }
+  .preset-btn.reset-btn:hover { border-color: #64748b; color: #475569; background: #f8fafc; }
 
   /* Settings */
   .settings-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
@@ -337,6 +339,7 @@
         <button class="preset-btn" id="preset-conservative" onclick="applyPreset('conservative')">🛡️ 手堅く</button>
         <button class="preset-btn active" id="preset-balanced" onclick="applyPreset('balanced')">⚖️ 安定</button>
         <button class="preset-btn" id="preset-aggressive" onclick="applyPreset('aggressive')">🚀 攻め</button>
+        <button class="preset-btn reset-btn" onclick="resetPreset()">↺ リセット</button>
       </div>
       <div class="preset-desc" id="preset-desc" style="font-size:0.82rem;color:#64748b;margin-bottom:14px;">
         下落が小さいうちは控えめに、大きく下がったときに積極投資するバランス型です。
@@ -344,11 +347,26 @@
       <table class="settings-table">
         <thead><tr><th>下落率の範囲</th><th>投資割合（%）</th></tr></thead>
         <tbody>
-          <tr><td>5% 未満</td><td><input type="number" id="th-0"  value="0"  min="0" max="100" step="5" oninput="onThresholdInput()" /> %</td></tr>
-          <tr><td>5% 以上 〜 10% 未満</td><td><input type="number" id="th-5"  value="10" min="0" max="100" step="5" oninput="onThresholdInput()" /> %</td></tr>
-          <tr><td>10% 以上 〜 15% 未満</td><td><input type="number" id="th-10" value="20" min="0" max="100" step="5" oninput="onThresholdInput()" /> %</td></tr>
-          <tr><td>15% 以上 〜 20% 未満</td><td><input type="number" id="th-15" value="35" min="0" max="100" step="5" oninput="onThresholdInput()" /> %</td></tr>
-          <tr><td>20% 以上</td><td><input type="number" id="th-20" value="50" min="0" max="100" step="5" oninput="onThresholdInput()" /> %</td></tr>
+          <tr>
+            <td><input type="number" id="br-0" value="5" min="1" max="50" step="1" oninput="onThresholdInput()" />% 未満</td>
+            <td><input type="number" id="th-0" value="0"  min="0" max="100" step="5" oninput="onThresholdInput()" /> %</td>
+          </tr>
+          <tr>
+            <td><span id="br-0-lbl">5</span>% 以上 〜 <input type="number" id="br-1" value="10" min="1" max="50" step="1" oninput="onThresholdInput()" />% 未満</td>
+            <td><input type="number" id="th-1" value="10" min="0" max="100" step="5" oninput="onThresholdInput()" /> %</td>
+          </tr>
+          <tr>
+            <td><span id="br-1-lbl">10</span>% 以上 〜 <input type="number" id="br-2" value="15" min="1" max="50" step="1" oninput="onThresholdInput()" />% 未満</td>
+            <td><input type="number" id="th-2" value="20" min="0" max="100" step="5" oninput="onThresholdInput()" /> %</td>
+          </tr>
+          <tr>
+            <td><span id="br-2-lbl">15</span>% 以上 〜 <input type="number" id="br-3" value="20" min="1" max="50" step="1" oninput="onThresholdInput()" />% 未満</td>
+            <td><input type="number" id="th-3" value="35" min="0" max="100" step="5" oninput="onThresholdInput()" /> %</td>
+          </tr>
+          <tr>
+            <td><span id="br-3-lbl">20</span>% 以上</td>
+            <td><input type="number" id="th-4" value="50" min="0" max="100" step="5" oninput="onThresholdInput()" /> %</td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -735,21 +753,26 @@ async function fetchMarketData() {
 // =====================================================================
 // Preset profiles
 // =====================================================================
+// breakpoints: [b0,b1,b2,b3] → 5段階の境界値
+// pcts: [p0,p1,p2,p3,p4] → 各段階の投資割合(%)
 const PRESETS = {
   conservative: {
     label: '手堅く',
     desc: '下落が大きいときだけ少額投資。リスクを最小限に抑える保守型です。',
-    values: [0, 5, 10, 20, 30],
+    breakpoints: [8, 15, 20, 25],
+    pcts: [0, 5, 10, 20, 30],
   },
   balanced: {
     label: '安定',
     desc: '下落が小さいうちは控えめに、大きく下がったときに積極投資するバランス型です。',
-    values: [0, 10, 20, 35, 50],
+    breakpoints: [5, 10, 15, 20],
+    pcts: [0, 10, 20, 35, 50],
   },
   aggressive: {
     label: '攻め',
     desc: '少しの下落でも積極的に買い増す積極型。値動きに強い方向けです。',
-    values: [5, 20, 40, 60, 80],
+    breakpoints: [3, 7, 12, 18],
+    pcts: [5, 20, 40, 60, 80],
   },
 };
 
@@ -759,18 +782,34 @@ function applyPreset(name) {
   const preset = PRESETS[name];
   if (!preset) return;
   currentPreset = name;
-  const ids = ['th-0', 'th-5', 'th-10', 'th-15', 'th-20'];
-  ids.forEach((id, i) => { document.getElementById(id).value = preset.values[i]; });
+  preset.breakpoints.forEach((v, i) => { document.getElementById(`br-${i}`).value = v; });
+  preset.pcts.forEach((v, i) => { document.getElementById(`th-${i}`).value = v; });
+  updateBreakpointLabels();
   document.getElementById('preset-desc').textContent = preset.desc;
-  document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.preset-btn:not(.reset-btn)').forEach(btn => btn.classList.remove('active'));
   document.getElementById(`preset-${name}`).classList.add('active');
   recalculate();
 }
 
+function resetPreset() {
+  if (currentPreset && PRESETS[currentPreset]) {
+    applyPreset(currentPreset);
+  }
+}
+
+function updateBreakpointLabels() {
+  [0,1,2,3].forEach(i => {
+    const val = document.getElementById(`br-${i}`).value;
+    const lbl = document.getElementById(`br-${i}-lbl`);
+    if (lbl) lbl.textContent = val;
+  });
+}
+
 function onThresholdInput() {
+  updateBreakpointLabels();
   currentPreset = 'custom';
-  document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
-  document.getElementById('preset-desc').textContent = 'カスタム設定中です。';
+  document.querySelectorAll('.preset-btn:not(.reset-btn)').forEach(btn => btn.classList.remove('active'));
+  document.getElementById('preset-desc').textContent = 'カスタム設定中です。↺ リセットで元に戻せます。';
   recalculate();
 }
 
@@ -778,22 +817,19 @@ function onThresholdInput() {
 // Thresholds & Calculation
 // =====================================================================
 function getThresholds() {
-  return {
-    0:  parseFloat(document.getElementById('th-0').value)  || 0,
-    5:  parseFloat(document.getElementById('th-5').value)  || 0,
-    10: parseFloat(document.getElementById('th-10').value) || 0,
-    15: parseFloat(document.getElementById('th-15').value) || 0,
-    20: parseFloat(document.getElementById('th-20').value) || 0,
-  };
+  const br = [0,1,2,3].map(i => parseFloat(document.getElementById(`br-${i}`).value) || 0);
+  const pct = [0,1,2,3,4].map(i => parseFloat(document.getElementById(`th-${i}`).value) || 0);
+  return { br, pct };
 }
 
 function getPct(drop, th) {
   if (drop === null || isNaN(drop)) return 0;
-  if (drop < 5)  return th[0]  / 100;
-  if (drop < 10) return th[5]  / 100;
-  if (drop < 15) return th[10] / 100;
-  if (drop < 20) return th[15] / 100;
-  return th[20] / 100;
+  const { br, pct } = th;
+  if (drop < br[0]) return pct[0] / 100;
+  if (drop < br[1]) return pct[1] / 100;
+  if (drop < br[2]) return pct[2] / 100;
+  if (drop < br[3]) return pct[3] / 100;
+  return pct[4] / 100;
 }
 
 function recalculate() {
@@ -889,7 +925,7 @@ function recalculate() {
   // 説明文
   let explanation = '';
   if (maxPct === 0) {
-    explanation = `すべてのETFで下落率が条件（${th[5]}%以上）を満たしていないため、今回は購入推奨なしです。`;
+    explanation = `すべてのETFで下落率が条件（${th.br[0]}%以上）を満たしていないため、今回は購入推奨なしです。`;
   } else if (triggeredGroups.length === 1) {
     const t = triggeredGroups[0];
     explanation = `${t}が52週高値から${groups[t].drop !== null ? groups[t].drop.toFixed(2) : '—'}%下落しています。買い付け余力の${(groups[t].pct*100).toFixed(0)}%（${fmt(totalInvest)}円）を投資することを推奨します。`;
