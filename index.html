@@ -595,117 +595,16 @@ function onManualDrop(ticker) {
 }
 
 // =====================================================================
-// Market Data
+// Market Data（prices.json から取得 — GitHub Actionsが毎日更新）
 // =====================================================================
 
-// Stooq CSV（Date,Open,High,Low,Close,Volume）を解析
-function parseStooqCSV(text) {
-  const lines = text.trim().split(/\r?\n/).slice(1);
-  if (!lines.length) throw new Error('データが空です');
-  const closes = lines.map(l => parseFloat(l.split(',')[4])).filter(v => !isNaN(v) && v > 0);
-  if (!closes.length) throw new Error('終値データなし');
-  const current = closes[closes.length - 1];
-  const high52  = Math.max(...closes);
-  const dropPct = (high52 - current) / high52 * 100;
-  return { current, high52, dropPct };
-}
-
-// Yahoo Finance チャートJSONを解析
-function parseYahooChart(data) {
-  const result = data.chart.result[0];
-  const current = result.meta.regularMarketPrice;
-  const closes  = result.indicators.quote[0].close.filter(v => v != null);
-  if (!closes.length) throw new Error('終値データなし');
-  const high52  = Math.max(...closes);
-  const dropPct = (high52 - current) / high52 * 100;
-  return { current, high52, dropPct };
-}
-
-// Yahoo Finance クォートJSONを解析（52週高値が直接取れる）
-function parseYahooQuote(data) {
-  const q = data.quoteResponse.result[0];
-  const current = q.regularMarketPrice;
-  const high52  = q.fiftyTwoWeekHigh;
-  const dropPct = (high52 - current) / high52 * 100;
-  return { current, high52, dropPct };
-}
-
-async function tryFetch(url, timeout = 10000) {
-  const r = await fetch(url, { signal: AbortSignal.timeout(timeout) });
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return r;
-}
-
 async function fetchTicker(symbol) {
-  const sym   = symbol.toLowerCase();
-  const stooqURL  = `https://stooq.com/q/d/l/?s=${sym}.us&i=d`;
-  const yahooChart = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=1y&interval=1wk`;
-  const yahooQuote = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbol}&fields=regularMarketPrice,fiftyTwoWeekHigh`;
-
-  const strategies = [
-    // 1. Yahoo Finance クォート — direct（CORSヘッダーあり環境）
-    async () => {
-      const r = await tryFetch(yahooQuote, 6000);
-      return parseYahooQuote(await r.json());
-    },
-    // 2. Yahoo Finance チャート — direct
-    async () => {
-      const r = await tryFetch(yahooChart, 6000);
-      return parseYahooChart(await r.json());
-    },
-    // 3. Stooq — corsproxy.io（URLそのまま）
-    async () => {
-      const r = await tryFetch(`https://corsproxy.io/?${stooqURL}`, 10000);
-      const t = await r.text();
-      if (!t.includes(',')) throw new Error('CSV形式でない');
-      return parseStooqCSV(t);
-    },
-    // 4. Yahoo Chart — corsproxy.io
-    async () => {
-      const r = await tryFetch(`https://corsproxy.io/?${yahooChart}`, 10000);
-      return parseYahooChart(await r.json());
-    },
-    // 5. Yahoo Quote — corsproxy.io
-    async () => {
-      const r = await tryFetch(`https://corsproxy.io/?${yahooQuote}`, 10000);
-      return parseYahooQuote(await r.json());
-    },
-    // 6. Stooq — allorigins raw
-    async () => {
-      const r = await tryFetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(stooqURL)}`, 12000);
-      const t = await r.text();
-      if (!t.includes(',')) throw new Error('CSV形式でない');
-      return parseStooqCSV(t);
-    },
-    // 7. Yahoo Chart — allorigins（contentsにJSON）
-    async () => {
-      const r = await tryFetch(`https://api.allorigins.win/get?url=${encodeURIComponent(yahooChart)}`, 12000);
-      const outer = await r.json();
-      return parseYahooChart(JSON.parse(outer.contents));
-    },
-    // 8. Stooq — codetabs
-    async () => {
-      const r = await tryFetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(stooqURL)}`, 12000);
-      const t = await r.text();
-      if (!t.includes(',')) throw new Error('CSV形式でない');
-      return parseStooqCSV(t);
-    },
-  ];
-
-  let lastErr = null;
-  for (let i = 0; i < strategies.length; i++) {
-    try {
-      const result = await strategies[i]();
-      console.log(`fetchTicker(${symbol}) 成功: strategy ${i + 1}`);
-      return result;
-    } catch(e) {
-      lastErr = e;
-      console.warn(`fetchTicker(${symbol}) strategy ${i + 1} 失敗:`, e.message);
-    }
-  }
-  throw new Error(`全${strategies.length}手法で取得失敗`);
+  const r = await fetch(`./prices.json?v=${Date.now()}`, { signal: AbortSignal.timeout(8000) });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const data = await r.json();
+  if (!data[symbol]) throw new Error(`${symbol}のデータなし`);
+  return data[symbol];
 }
-
 function dropClass(pct) {
   if (pct < 5)  return 'green';
   if (pct < 10) return 'yellow';
@@ -758,25 +657,43 @@ async function fetchMarketData() {
     return;
   }
 
+  // prices.json を一度だけ取得して全ティッカーに適用
+  let pricesData = null;
+  try {
+    const r = await fetch(`./prices.json?v=${Date.now()}`, { signal: AbortSignal.timeout(8000) });
+    if (r.ok) pricesData = await r.json();
+  } catch(e) {
+    console.warn('prices.json fetch failed:', e);
+  }
+
   let successCount = 0;
-  await Promise.all(tickers.map(async ticker => {
-    try {
-      const info = await fetchTicker(ticker);
+  for (const ticker of tickers) {
+    const info = pricesData && pricesData[ticker] ? pricesData[ticker] : null;
+    if (info) {
       state.tickerDrops[ticker] = info.dropPct;
       renderTickerData(ticker, info);
       successCount++;
-    } catch(e) {
-      console.warn(`${ticker} fetch failed:`, e);
+    } else {
       renderTickerData(ticker, null);
     }
-  }));
+  }
 
-  if (successCount > 0) {
+  if (pricesData && pricesData.updatedAt) {
+    const d = new Date(pricesData.updatedAt);
+    const label = d.toLocaleDateString('ja-JP') + ' ' + d.toLocaleTimeString('ja-JP');
+    if (successCount > 0) {
+      dot.className = 'dot success';
+      txt.textContent = `取得成功（データ更新: ${label} UTC）`;
+    } else {
+      dot.className = 'dot error';
+      txt.textContent = 'データファイルに対象ティッカーがありません — 手動入力してください';
+    }
+  } else if (successCount > 0) {
     dot.className = 'dot success';
-    txt.textContent = `取得成功 ${successCount}/${tickers.length}件 (${new Date().toLocaleTimeString('ja-JP')})`;
+    txt.textContent = `取得成功 ${successCount}件`;
   } else {
     dot.className = 'dot error';
-    txt.textContent = '取得失敗 — 手動で入力してください';
+    txt.textContent = 'prices.jsonが見つかりません — 手動で入力してください';
   }
 
   recalculate();

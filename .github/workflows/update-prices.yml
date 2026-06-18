@@ -1,0 +1,56 @@
+name: Update Price Data
+
+on:
+  schedule:
+    - cron: '0 1 * * 1-5'  # 月〜金 UTC 01:00（日本時間10:00）
+  workflow_dispatch:        # 手動実行も可能
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch prices from Stooq
+        run: |
+          python3 << 'EOF'
+          import urllib.request, json, sys
+          from datetime import datetime
+
+          def fetch(symbol):
+              url = f"https://stooq.com/q/d/l/?s={symbol.lower()}.us&i=d"
+              req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  text = r.read().decode("utf-8")
+              lines = [l for l in text.strip().split("\n")[1:] if l.strip()]
+              closes = [float(l.split(",")[4]) for l in lines]
+              closes = [v for v in closes if v > 0]
+              current = closes[-1]
+              high52  = max(closes)
+              drop    = (high52 - current) / high52 * 100
+              return {"current": round(current, 2), "high52": round(high52, 2), "dropPct": round(drop, 4)}
+
+          result = {}
+          for sym in ["VT", "VOO"]:
+              try:
+                  result[sym] = fetch(sym)
+                  print(f"{sym}: {result[sym]}")
+              except Exception as e:
+                  print(f"ERROR {sym}: {e}", file=sys.stderr)
+
+          result["updatedAt"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+          with open("prices.json", "w") as f:
+              json.dump(result, f, indent=2)
+          print("Saved prices.json")
+          EOF
+
+      - name: Commit and push
+        run: |
+          git config user.email "noreply@anthropic.com"
+          git config user.name "Claude"
+          git add prices.json
+          git diff --staged --quiet || git commit -m "Update price data $(date -u +%Y-%m-%d)"
+          git push
