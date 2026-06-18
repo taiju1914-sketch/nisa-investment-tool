@@ -595,47 +595,17 @@ function onManualDrop(ticker) {
 }
 
 // =====================================================================
-// Market Data（Stooq経由 — 無料・認証不要）
+// Market Data（prices.json から取得 — GitHub Actionsが毎日更新）
 // =====================================================================
 
-// Stooq CSV（Date,Open,High,Low,Close,Volume）を解析
-function parseStooqCSV(text) {
-  const lines = text.trim().split(/\r?\n/).slice(1); // ヘッダー行をスキップ
-  if (!lines.length) throw new Error('データが空です');
-  const closes = lines.map(l => parseFloat(l.split(',')[4])).filter(v => !isNaN(v) && v > 0);
-  if (!closes.length) throw new Error('終値データが取得できませんでした');
-  const current = closes[closes.length - 1];
-  const high52  = Math.max(...closes);
-  const dropPct = (high52 - current) / high52 * 100;
-  return { current, high52, dropPct };
-}
-
 async function fetchTicker(symbol) {
-  // Stooq: VT → vt.us、VOO → voo.us
-  const stooqSym = symbol.toLowerCase() + '.us';
-  const stooqURL = `https://stooq.com/q/d/l/?s=${stooqSym}&i=d`;
-
-  // CORSプロキシを順番に試す
-  const proxies = [
-    u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-    u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-    u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
-  ];
-
-  let lastErr = null;
-  for (const makeProxy of proxies) {
-    try {
-      const r = await fetch(makeProxy(stooqURL), { signal: AbortSignal.timeout(10000) });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const text = await r.text();
-      if (!text.includes(',')) throw new Error('CSV形式ではありません');
-      return parseStooqCSV(text);
-    } catch(e) {
-      lastErr = e;
-      console.warn(`fetchTicker(${symbol}) failed:`, e.message);
-    }
-  }
-  throw new Error(`取得失敗: ${lastErr?.message}`);
+  // prices.json はGitHub Actionsが毎日自動更新する同一オリジンのファイル
+  // CORSの問題なし
+  const r = await fetch(`./prices.json?v=${Date.now()}`, { signal: AbortSignal.timeout(8000) });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const data = await r.json();
+  if (!data[symbol]) throw new Error(`${symbol}のデータなし`);
+  return data[symbol];
 }
 
 function dropClass(pct) {
@@ -690,25 +660,43 @@ async function fetchMarketData() {
     return;
   }
 
+  // prices.json を一度だけ取得して全ティッカーに適用
+  let pricesData = null;
+  try {
+    const r = await fetch(`./prices.json?v=${Date.now()}`, { signal: AbortSignal.timeout(8000) });
+    if (r.ok) pricesData = await r.json();
+  } catch(e) {
+    console.warn('prices.json fetch failed:', e);
+  }
+
   let successCount = 0;
-  await Promise.all(tickers.map(async ticker => {
-    try {
-      const info = await fetchTicker(ticker);
+  for (const ticker of tickers) {
+    const info = pricesData && pricesData[ticker] ? pricesData[ticker] : null;
+    if (info) {
       state.tickerDrops[ticker] = info.dropPct;
       renderTickerData(ticker, info);
       successCount++;
-    } catch(e) {
-      console.warn(`${ticker} fetch failed:`, e);
+    } else {
       renderTickerData(ticker, null);
     }
-  }));
+  }
 
-  if (successCount > 0) {
+  if (pricesData && pricesData.updatedAt) {
+    const d = new Date(pricesData.updatedAt);
+    const label = d.toLocaleDateString('ja-JP') + ' ' + d.toLocaleTimeString('ja-JP');
+    if (successCount > 0) {
+      dot.className = 'dot success';
+      txt.textContent = `取得成功（データ更新: ${label} UTC）`;
+    } else {
+      dot.className = 'dot error';
+      txt.textContent = 'データファイルに対象ティッカーがありません — 手動入力してください';
+    }
+  } else if (successCount > 0) {
     dot.className = 'dot success';
-    txt.textContent = `取得成功 ${successCount}/${tickers.length}件 (${new Date().toLocaleTimeString('ja-JP')})`;
+    txt.textContent = `取得成功 ${successCount}件`;
   } else {
     dot.className = 'dot error';
-    txt.textContent = '取得失敗 — 手動で入力してください';
+    txt.textContent = 'prices.jsonが見つかりません — 手動で入力してください';
   }
 
   recalculate();
