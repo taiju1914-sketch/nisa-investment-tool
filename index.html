@@ -595,49 +595,115 @@ function onManualDrop(ticker) {
 }
 
 // =====================================================================
-// Market Data（Stooq経由 — 無料・認証不要）
+// Market Data
 // =====================================================================
 
 // Stooq CSV（Date,Open,High,Low,Close,Volume）を解析
 function parseStooqCSV(text) {
-  const lines = text.trim().split(/\r?\n/).slice(1); // ヘッダー行をスキップ
+  const lines = text.trim().split(/\r?\n/).slice(1);
   if (!lines.length) throw new Error('データが空です');
   const closes = lines.map(l => parseFloat(l.split(',')[4])).filter(v => !isNaN(v) && v > 0);
-  if (!closes.length) throw new Error('終値データが取得できませんでした');
+  if (!closes.length) throw new Error('終値データなし');
   const current = closes[closes.length - 1];
   const high52  = Math.max(...closes);
   const dropPct = (high52 - current) / high52 * 100;
   return { current, high52, dropPct };
 }
 
-async function fetchTicker(symbol) {
-  // Stooq: VT → vt.us、VOO → voo.us
-  const stooqSym = symbol.toLowerCase() + '.us';
-  const stooqURL = `https://stooq.com/q/d/l/?s=${stooqSym}&i=d`;
+// Yahoo Finance チャートJSONを解析
+function parseYahooChart(data) {
+  const result = data.chart.result[0];
+  const current = result.meta.regularMarketPrice;
+  const closes  = result.indicators.quote[0].close.filter(v => v != null);
+  if (!closes.length) throw new Error('終値データなし');
+  const high52  = Math.max(...closes);
+  const dropPct = (high52 - current) / high52 * 100;
+  return { current, high52, dropPct };
+}
 
-  // CORSプロキシを順番に試す
-  // corsproxy.io はURLをエンコードしない、他はエンコードする
-  const proxies = [
-    u => `https://corsproxy.io/?${u}`,
-    u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-    u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
-    u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+// Yahoo Finance クォートJSONを解析（52週高値が直接取れる）
+function parseYahooQuote(data) {
+  const q = data.quoteResponse.result[0];
+  const current = q.regularMarketPrice;
+  const high52  = q.fiftyTwoWeekHigh;
+  const dropPct = (high52 - current) / high52 * 100;
+  return { current, high52, dropPct };
+}
+
+async function tryFetch(url, timeout = 10000) {
+  const r = await fetch(url, { signal: AbortSignal.timeout(timeout) });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r;
+}
+
+async function fetchTicker(symbol) {
+  const sym   = symbol.toLowerCase();
+  const stooqURL  = `https://stooq.com/q/d/l/?s=${sym}.us&i=d`;
+  const yahooChart = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=1y&interval=1wk`;
+  const yahooQuote = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbol}&fields=regularMarketPrice,fiftyTwoWeekHigh`;
+
+  const strategies = [
+    // 1. Yahoo Finance クォート — direct（CORSヘッダーあり環境）
+    async () => {
+      const r = await tryFetch(yahooQuote, 6000);
+      return parseYahooQuote(await r.json());
+    },
+    // 2. Yahoo Finance チャート — direct
+    async () => {
+      const r = await tryFetch(yahooChart, 6000);
+      return parseYahooChart(await r.json());
+    },
+    // 3. Stooq — corsproxy.io（URLそのまま）
+    async () => {
+      const r = await tryFetch(`https://corsproxy.io/?${stooqURL}`, 10000);
+      const t = await r.text();
+      if (!t.includes(',')) throw new Error('CSV形式でない');
+      return parseStooqCSV(t);
+    },
+    // 4. Yahoo Chart — corsproxy.io
+    async () => {
+      const r = await tryFetch(`https://corsproxy.io/?${yahooChart}`, 10000);
+      return parseYahooChart(await r.json());
+    },
+    // 5. Yahoo Quote — corsproxy.io
+    async () => {
+      const r = await tryFetch(`https://corsproxy.io/?${yahooQuote}`, 10000);
+      return parseYahooQuote(await r.json());
+    },
+    // 6. Stooq — allorigins raw
+    async () => {
+      const r = await tryFetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(stooqURL)}`, 12000);
+      const t = await r.text();
+      if (!t.includes(',')) throw new Error('CSV形式でない');
+      return parseStooqCSV(t);
+    },
+    // 7. Yahoo Chart — allorigins（contentsにJSON）
+    async () => {
+      const r = await tryFetch(`https://api.allorigins.win/get?url=${encodeURIComponent(yahooChart)}`, 12000);
+      const outer = await r.json();
+      return parseYahooChart(JSON.parse(outer.contents));
+    },
+    // 8. Stooq — codetabs
+    async () => {
+      const r = await tryFetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(stooqURL)}`, 12000);
+      const t = await r.text();
+      if (!t.includes(',')) throw new Error('CSV形式でない');
+      return parseStooqCSV(t);
+    },
   ];
 
   let lastErr = null;
-  for (const makeProxy of proxies) {
+  for (let i = 0; i < strategies.length; i++) {
     try {
-      const r = await fetch(makeProxy(stooqURL), { signal: AbortSignal.timeout(10000) });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const text = await r.text();
-      if (!text.includes(',')) throw new Error('CSV形式ではありません');
-      return parseStooqCSV(text);
+      const result = await strategies[i]();
+      console.log(`fetchTicker(${symbol}) 成功: strategy ${i + 1}`);
+      return result;
     } catch(e) {
       lastErr = e;
-      console.warn(`fetchTicker(${symbol}) failed:`, e.message);
+      console.warn(`fetchTicker(${symbol}) strategy ${i + 1} 失敗:`, e.message);
     }
   }
-  throw new Error(`取得失敗: ${lastErr?.message}`);
+  throw new Error(`全${strategies.length}手法で取得失敗`);
 }
 
 function dropClass(pct) {
