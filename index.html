@@ -616,10 +616,12 @@ async function fetchTicker(symbol) {
   const stooqURL = `https://stooq.com/q/d/l/?s=${stooqSym}&i=d`;
 
   // CORSプロキシを順番に試す
+  // corsproxy.io はURLをエンコードしない、他はエンコードする
   const proxies = [
-    u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+    u => `https://corsproxy.io/?${u}`,
     u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
     u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+    u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
   ];
 
   let lastErr = null;
