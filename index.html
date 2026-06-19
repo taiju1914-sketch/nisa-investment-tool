@@ -700,6 +700,7 @@ function applySecurities() {
   rebuildTickerCards([...tickers]);
 
   recalculate();
+  syncNotifyConfigToGitHub();
 
   // スクロール
   document.getElementById('card-cash').scrollIntoView({ behavior: 'smooth', block: 'start' });
