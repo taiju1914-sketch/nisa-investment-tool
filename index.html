@@ -213,9 +213,13 @@
   }
   .chart-range-btn:hover { border-color: #1a56db; color: #1a56db; }
   .chart-range-btn.active { background: #1a56db; border-color: #1a56db; color: #fff; font-weight: 600; }
-  .chart-range-btn.ticker-toggle { color: var(--tc); border-color: var(--tc); background: #fff; }
-  .chart-range-btn.ticker-toggle.active { background: var(--tc); border-color: var(--tc); color: #fff; }
-  .chart-range-btn.ticker-toggle:not(.active) { opacity: 0.45; }
+  .ticker-toggle-btn {
+    padding: 4px 12px; border-radius: 6px; border: 2px solid; font-size: 0.82rem;
+    font-weight: 700; cursor: pointer; transition: all 0.15s; opacity: 0.35;
+  }
+  .ticker-toggle-btn.active-vt  { border-color: #1a56db; color: #1a56db; background: #fff; opacity: 1; }
+  .ticker-toggle-btn.active-voo { border-color: #f97316; color: #f97316; background: #fff; opacity: 1; }
+  .ticker-toggle-btn.off { background: #fff; border-color: #cbd5e1; color: #94a3b8; opacity: 0.5; }
   .chart-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; font-size: 0.8rem; color: #475569; }
   .chart-legend-item { display: flex; align-items: center; gap: 6px; }
   .chart-legend-dot { width: 14px; height: 3px; border-radius: 2px; }
@@ -337,10 +341,8 @@
             <button class="chart-range-btn active" onclick="setChartRange(12)" id="range-12m">1年</button>
           </div>
           <span style="font-size:0.78rem;color:#94a3b8;margin-left:8px;">銘柄：</span>
-          <div class="chart-range-btns">
-            <button class="chart-range-btn ticker-toggle active" id="toggle-VT"  onclick="toggleTicker('VT')" style="--tc:#1a56db">● VT</button>
-            <button class="chart-range-btn ticker-toggle active" id="toggle-VOO" onclick="toggleTicker('VOO')" style="--tc:#f97316">● VOO</button>
-          </div>
+          <button id="toggle-VT"  onclick="toggleTicker('VT')"  class="ticker-toggle-btn active-vt" >● VT</button>
+          <button id="toggle-VOO" onclick="toggleTicker('VOO')" class="ticker-toggle-btn active-voo">● VOO</button>
         </div>
         <canvas id="price-chart" style="width:100%;border-radius:8px;"></canvas>
       </div>
@@ -868,7 +870,12 @@ function setChartRange(months) {
 function toggleTicker(ticker) {
   tickerVisible[ticker] = !tickerVisible[ticker];
   const btn = document.getElementById(`toggle-${ticker}`);
-  if (btn) btn.classList.toggle('active', tickerVisible[ticker]);
+  if (btn) {
+    const on = tickerVisible[ticker];
+    btn.className = on
+      ? `ticker-toggle-btn active-${ticker.toLowerCase()}`
+      : 'ticker-toggle-btn off';
+  }
   renderPriceChart();
 }
 
