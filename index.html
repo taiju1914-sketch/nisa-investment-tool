@@ -1202,7 +1202,8 @@ function syncNotifyConfigToGitHub() {
   clearTimeout(syncTimer);
   syncTimer = setTimeout(async () => {
     const th = getThresholds();
-    const content = JSON.stringify({breakpoints: th.br, pcts: th.pct}, null, 2);
+    const cash = parseFloat(document.getElementById('input-cash').value) || 0;
+    const content = JSON.stringify({breakpoints: th.br, pcts: th.pct, cash: cash}, null, 2);
     const encoded = btoa(unescape(encodeURIComponent(content)));
     const apiBase = 'https://api.github.com/repos/taiju1914-sketch/nisa-investment-tool/contents/notify-config.json';
     try {
@@ -1364,6 +1365,7 @@ function showUploadStatus(type, msg) {
 document.getElementById('input-cash').addEventListener('input', function() {
   this.classList.remove('auto-filled');
   recalculate();
+  syncNotifyConfigToGitHub();
 });
 
 // 初期状態でVT/VOOカードを表示

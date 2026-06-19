@@ -66,7 +66,7 @@ jobs:
               with open("notify-config.json") as f:
                   cfg = json.load(f)
           except:
-              cfg = {"breakpoints": [5, 10, 15, 20], "pcts": [0, 10, 20, 35, 50]}
+              cfg = {"breakpoints": [5, 10, 15, 20], "pcts": [0, 10, 20, 35, 50], "cash": 0}
 
           def get_invest_pct(drop, cfg):
               br = cfg["breakpoints"]
@@ -110,6 +110,7 @@ jobs:
               print("LINE_CHANNEL_TOKEN または LINE_USER_ID 未設定のためLINE通知スキップ")
           else:
               br = cfg["breakpoints"]
+              cash = cfg.get("cash", 0)
               lines = ["📊 NISA投資アドバイス（本日の状況）\n"]
               should_notify = False
               for sym in ["VT", "VOO"]:
@@ -120,9 +121,19 @@ jobs:
                   ip = get_invest_pct(d, cfg)
                   lbl = drop_label(d, cfg)
                   lines.append(f"  {sym}: ${result[sym]['current']} (高値比 -{d:.2f}%)")
-                  lines.append(f"    → {lbl}（買い付け余力の{ip}%投資推奨）")
+                  if ip > 0 and cash > 0:
+                      amount = int(round(cash * ip / 100))
+                      lines.append(f"    → {lbl}")
+                      lines.append(f"      買い付け余力の{ip}% = 約{amount:,}円を投資推奨")
+                  elif ip > 0:
+                      lines.append(f"    → {lbl}（買い付け余力の{ip}%投資推奨）")
+                  else:
+                      lines.append(f"    → {lbl}")
                   if ip > 0:
                       should_notify = True
+
+              if cash > 0:
+                  lines.append(f"\n（買い付け余力: {int(round(cash)):,}円）")
 
               if should_notify:
                   lines.insert(1, "💡 投資タイミングが来ています！\n")
