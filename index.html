@@ -1356,6 +1356,11 @@ function recalculate() {
   recArea.innerHTML = html;
 
   renderPriceChart();
+
+  // 銘柄・余力が揃っていれば設定を自動同期
+  if (state.securities.length > 0 && cash > 0) {
+    syncNotifyConfigToGitHub();
+  }
 }
 
 // =====================================================================
