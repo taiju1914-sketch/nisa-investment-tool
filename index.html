@@ -374,15 +374,19 @@
       <p style="font-size:0.88rem;color:#1e293b;margin-bottom:14px;">
         毎朝10時（平日）に下落率と投資推奨をLINEで受け取れます。一度設定するだけで自動通知されます。
       </p>
-      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:16px;font-size:0.85rem;line-height:2;">
-        <strong>設定手順（5分で完了）</strong><br>
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:16px;font-size:0.85rem;line-height:2.1;">
+        <strong>設定手順（約10分）</strong><br>
         <span style="color:#166534;">
-          ① <a href="https://notify-bot.line.me/ja/" target="_blank" style="color:#16a34a;font-weight:600;">notify-bot.line.me</a> を開いてLINEログイン<br>
-          ② 「マイページ」→「トークンを発行する」をクリック<br>
-          ③ トークン名に「NISA通知」と入力 → 通知先に「1:1でLINE Notifyから通知を受け取る」を選択 → 発行<br>
-          ④ 表示されたトークン（英数字の文字列）をコピー<br>
-          ⑤ <a href="https://github.com/taiju1914-sketch/nisa-investment-tool/settings/secrets/actions/new" target="_blank" style="color:#16a34a;font-weight:600;">GitHubのシークレット設定</a> を開く<br>
-          ⑥ Name に <code style="background:#dcfce7;padding:2px 6px;border-radius:4px;">LINE_NOTIFY_TOKEN</code>、Secret にコピーしたトークンを貼り付けて「Add secret」
+          ① <a href="https://developers.line.biz/console/" target="_blank" style="color:#16a34a;font-weight:600;">LINE Developersコンソール</a> を開いてLINEアカウントでログイン<br>
+          ② 「プロバイダー作成」→ 任意の名前（例：個人）で作成<br>
+          ③ プロバイダー画面で「チャンネルを作成」→「Messaging API」を選択<br>
+          ④ チャンネル名などを入力して作成完了後、チャンネル設定を開く<br>
+          ⑤ 「Messaging API設定」タブ →「チャンネルアクセストークン（長期）」→「発行」してコピー<br>
+          ⑥ 「Basic settings」タブ →「あなたのユーザーID」（U で始まる文字列）をコピー<br>
+          ⑦ 同ページのQRコードをLINEアプリでスキャンしてBotを友だち追加<br>
+          ⑧ <a href="https://github.com/taiju1914-sketch/nisa-investment-tool/settings/secrets/actions/new" target="_blank" style="color:#16a34a;font-weight:600;">GitHubのシークレット設定</a> で以下を2件追加：<br>
+          &nbsp;&nbsp;&nbsp;・Name: <code style="background:#dcfce7;padding:2px 6px;border-radius:4px;">LINE_CHANNEL_TOKEN</code> → ⑤でコピーしたアクセストークン<br>
+          &nbsp;&nbsp;&nbsp;・Name: <code style="background:#dcfce7;padding:2px 6px;border-radius:4px;">LINE_USER_ID</code> → ⑥でコピーしたユーザーID
         </span>
       </div>
       <p style="font-size:0.8rem;color:#64748b;margin-top:10px;">

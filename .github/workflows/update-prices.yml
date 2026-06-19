@@ -98,10 +98,11 @@ jobs:
               json.dump(result, f, indent=2)
           print("Saved prices.json")
 
-          # LINE通知
-          token = os.environ.get("LINE_NOTIFY_TOKEN", "")
-          if not token:
-              print("LINE_NOTIFY_TOKEN未設定のためLINE通知スキップ")
+          # LINE Messaging API通知
+          channel_token = os.environ.get("LINE_CHANNEL_TOKEN", "")
+          user_id = os.environ.get("LINE_USER_ID", "")
+          if not channel_token or not user_id:
+              print("LINE_CHANNEL_TOKEN または LINE_USER_ID 未設定のためLINE通知スキップ")
           else:
               br = cfg["breakpoints"]
               lines = ["📊 NISA投資アドバイス（本日の状況）\n"]
@@ -127,11 +128,17 @@ jobs:
               msg = "\n".join(lines)
 
               try:
-                  data = urllib.parse.urlencode({"message": msg}).encode("utf-8")
+                  payload = json.dumps({
+                      "to": user_id,
+                      "messages": [{"type": "text", "text": msg}]
+                  }).encode("utf-8")
                   req = urllib.request.Request(
-                      "https://notify-api.line.me/api/notify",
-                      data=data,
-                      headers={"Authorization": f"Bearer {token}"}
+                      "https://api.line.me/v2/bot/message/push",
+                      data=payload,
+                      headers={
+                          "Authorization": f"Bearer {channel_token}",
+                          "Content-Type": "application/json"
+                      }
                   )
                   with urllib.request.urlopen(req, timeout=15) as r:
                       print(f"LINE通知送信完了: {r.status}")
