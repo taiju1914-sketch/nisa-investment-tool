@@ -204,46 +204,10 @@
 
   .hidden { display: none !important; }
 
-  /* Drop gauge chart */
-  .gauge-row { margin-bottom: 16px; }
-  .gauge-label { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
-  .gauge-label-name { font-size: 0.88rem; font-weight: 600; color: #1e293b; }
-  .gauge-label-pct { font-size: 0.95rem; font-weight: 700; }
-  .gauge-label-pct.green  { color: #16a34a; }
-  .gauge-label-pct.yellow { color: #ca8a04; }
-  .gauge-label-pct.orange { color: #ea580c; }
-  .gauge-label-pct.red    { color: #dc2626; }
-  .gauge-track {
-    position: relative; height: 28px; border-radius: 14px;
-    background: linear-gradient(to right, #dcfce7 0%, #dcfce7 var(--z1), #fef9c3 var(--z1), #fef9c3 var(--z2), #ffedd5 var(--z2), #ffedd5 var(--z3), #fee2e2 var(--z3), #fee2e2 100%);
-    overflow: visible;
-  }
-  .gauge-fill {
-    position: absolute; top: 4px; left: 0; height: 20px; border-radius: 10px;
-    transition: width 0.6s ease;
-    min-width: 4px;
-  }
-  .gauge-fill.green  { background: #16a34a; }
-  .gauge-fill.yellow { background: #ca8a04; }
-  .gauge-fill.orange { background: #ea580c; }
-  .gauge-fill.red    { background: #dc2626; }
-  .gauge-tick {
-    position: absolute; top: 0; width: 2px; height: 28px;
-    background: rgba(100,116,139,0.35); transform: translateX(-1px);
-  }
-  .gauge-tick-label {
-    position: absolute; top: 32px; font-size: 0.7rem; color: #94a3b8;
-    transform: translateX(-50%); white-space: nowrap;
-  }
-  .gauge-zone-label {
-    position: absolute; top: 7px; font-size: 0.68rem; color: rgba(0,0,0,0.35);
-    pointer-events: none; white-space: nowrap;
-  }
-  .gauge-wrapper { position: relative; padding-bottom: 28px; }
-  .gauge-invest-badge {
-    margin-top: 6px; font-size: 0.78rem; color: #64748b;
-  }
-  .gauge-invest-badge strong { color: #1a56db; }
+  /* Price chart legend */
+  .chart-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; font-size: 0.8rem; color: #475569; }
+  .chart-legend-item { display: flex; align-items: center; gap: 6px; }
+  .chart-legend-dot { width: 14px; height: 3px; border-radius: 2px; }
 </style>
 </head>
 <body>
@@ -349,9 +313,9 @@
           </div></div>
         </div>
       </div>
-      <div id="drop-chart-area" style="display:none; margin-top:20px;">
-        <div style="font-size:0.82rem;font-weight:600;color:#475569;margin-bottom:10px;">下落率ゲージ（しきい値との比較）</div>
-        <div id="drop-chart"></div>
+      <div id="price-chart-area" style="display:none; margin-top:20px;">
+        <div style="font-size:0.82rem;font-weight:600;color:#475569;margin-bottom:10px;">過去1年間の株価推移</div>
+        <canvas id="price-chart" style="width:100%;border-radius:8px;"></canvas>
       </div>
     </div>
   </div>
@@ -720,58 +684,123 @@ function updateDropBadge(ticker, pct) {
   badge.textContent = `${arrow} 高値比 ${pct.toFixed(2)}% 下落`;
 }
 
-function renderDropChart() {
-  const tickers = Object.keys(state.tickerDrops).filter(t => state.tickerDrops[t] !== null);
-  const chartArea = document.getElementById('drop-chart-area');
-  const chart = document.getElementById('drop-chart');
-  if (tickers.length === 0) { chartArea.style.display = 'none'; return; }
-  chartArea.style.display = 'block';
+let priceHistory = {};
 
-  const th = getThresholds();
-  const br = th.br;
-  const maxScale = Math.max(30, ...br, ...tickers.map(t => state.tickerDrops[t] || 0)) * 1.15;
+function renderPriceChart() {
+  const area = document.getElementById('price-chart-area');
+  const canvas = document.getElementById('price-chart');
+  const datasets = Object.entries(priceHistory).filter(([, h]) => h && h.length > 0);
+  if (datasets.length === 0) { area.style.display = 'none'; return; }
+  area.style.display = 'block';
 
-  const pctOf = v => Math.min(100, (v / maxScale) * 100).toFixed(2) + '%';
-  const z1 = pctOf(br[0]), z2 = pctOf(br[1]), z3 = pctOf(br[2]);
+  const DPR = window.devicePixelRatio || 1;
+  const W = canvas.parentElement.clientWidth;
+  const H = Math.round(W * 0.42);
+  canvas.width = W * DPR;
+  canvas.height = H * DPR;
+  canvas.style.height = H + 'px';
 
-  chart.innerHTML = tickers.map(ticker => {
-    const drop = state.tickerDrops[ticker];
-    const cls = drop < br[0] ? 'green' : drop < br[1] ? 'yellow' : drop < br[2] ? 'orange' : 'red';
-    const fillW = pctOf(drop);
-    const investPct = (getPct(drop, th) * 100).toFixed(0);
-    const names = { VT: 'VT（全世界株）', VOO: 'VOO（S&P500）' };
-    const label = names[ticker] || ticker;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(DPR, DPR);
 
-    const ticks = br.map((v, i) => `
-      <div class="gauge-tick" style="left:${pctOf(v)}"></div>
-      <div class="gauge-tick-label" style="left:${pctOf(v)}">${v}%</div>
-    `).join('');
+  const PAD = { top: 24, right: 24, bottom: 44, left: 62 };
+  const CW = W - PAD.left - PAD.right;
+  const CH = H - PAD.top - PAD.bottom;
 
-    const zoneLabels = [
-      { pos: `calc(${pctOf(0)}% + 4px)`, text: '様子見' },
-      { pos: `calc((${pctOf(br[0])} + ${pctOf(br[1])})/2)`, text: '少額' },
-      { pos: `calc((${pctOf(br[1])} + ${pctOf(br[2])})/2)`, text: '中程度' },
-      { pos: `calc((${pctOf(br[2])} + ${pctOf(br[3])})/2)`, text: '積極' },
-      { pos: `calc((${pctOf(br[3])} + 100%)/2)`, text: '最大' },
-    ].map(z => `<div class="gauge-zone-label" style="left:${z.pos}">${z.text}</div>`).join('');
+  const COLORS = { VT: '#1a56db', VOO: '#ea580c' };
 
-    return `
-      <div class="gauge-row">
-        <div class="gauge-label">
-          <span class="gauge-label-name">${label}</span>
-          <span class="gauge-label-pct ${cls}">▼ ${drop.toFixed(2)}% 下落</span>
-        </div>
-        <div class="gauge-wrapper">
-          <div class="gauge-track" style="--z1:${z1};--z2:${z2};--z3:${z3}">
-            <div class="gauge-fill ${cls}" style="width:${fillW}"></div>
-            ${ticks}
-            ${zoneLabels}
-          </div>
-        </div>
-        <div class="gauge-invest-badge">
-          → この下落率では買い付け余力の <strong>${investPct}%</strong> を投資
-        </div>
-      </div>`;
+  // 全データの日付を統合してソート
+  const allDates = [...new Set(datasets.flatMap(([, h]) => h.map(p => p.date)))].sort();
+  const allValues = datasets.flatMap(([, h]) => h.map(p => p.close));
+  const minV = Math.min(...allValues) * 0.98;
+  const maxV = Math.max(...allValues) * 1.02;
+
+  const xOf = date => PAD.left + (allDates.indexOf(date) / (allDates.length - 1)) * CW;
+  const yOf = val  => PAD.top + CH - ((val - minV) / (maxV - minV)) * CH;
+
+  // 背景
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#fff';
+  ctx.roundRect(PAD.left, PAD.top, CW, CH, 6);
+  ctx.fill();
+
+  // グリッド横線とY軸ラベル
+  const yTicks = 5;
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  ctx.font = `${11 * DPR / DPR}px sans-serif`;
+  ctx.fillStyle = '#94a3b8';
+  for (let i = 0; i <= yTicks; i++) {
+    const val = minV + (maxV - minV) * (i / yTicks);
+    const y = yOf(val);
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + CW, y); ctx.stroke();
+    ctx.fillText('$' + val.toFixed(0), PAD.left - 6, y);
+  }
+
+  // X軸ラベル（月ごと）
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  let lastMonth = '';
+  allDates.forEach((d, i) => {
+    const month = d.slice(0, 7);
+    if (month !== lastMonth) {
+      lastMonth = month;
+      const x = xOf(d);
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText(month.replace('-', '/'), x, PAD.top + CH + 8);
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, PAD.top + CH); ctx.stroke();
+    }
+  });
+
+  // 各ティッカーのライン描画
+  datasets.forEach(([ticker, history]) => {
+    const color = COLORS[ticker] || '#64748b';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    history.forEach((p, i) => {
+      const x = xOf(p.date);
+      const y = yOf(p.close);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // 最新値ラベル
+    const last = history[history.length - 1];
+    const lx = xOf(last.date);
+    const ly = yOf(last.close);
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(lx, ly, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#1e293b';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillText(`${ticker} $${last.close}`, lx - 6, ly - 2);
+  });
+
+  // 凡例をcanvas下に更新
+  let legend = document.getElementById('price-chart-legend');
+  if (!legend) {
+    legend = document.createElement('div');
+    legend.id = 'price-chart-legend';
+    legend.className = 'chart-legend';
+    area.appendChild(legend);
+  }
+  legend.innerHTML = datasets.map(([ticker, history]) => {
+    const last = history[history.length - 1];
+    const first = history[0];
+    const chg = ((last.close - first.close) / first.close * 100).toFixed(1);
+    const sign = chg >= 0 ? '+' : '';
+    return `<div class="chart-legend-item">
+      <div class="chart-legend-dot" style="background:${COLORS[ticker] || '#64748b'}"></div>
+      <strong>${ticker}</strong> $${last.close} <span style="color:${chg>=0?'#16a34a':'#dc2626'}">(${sign}${chg}% 過去1年)</span>
+    </div>`;
   }).join('');
 }
 
@@ -822,6 +851,7 @@ async function fetchMarketData() {
     const info = pricesData && pricesData[ticker] ? pricesData[ticker] : null;
     if (info) {
       state.tickerDrops[ticker] = info.dropPct;
+      if (info.history) priceHistory[ticker] = info.history;
       renderTickerData(ticker, info);
       successCount++;
     } else {
@@ -848,7 +878,7 @@ async function fetchMarketData() {
   }
 
   recalculate();
-  renderDropChart();
+  renderPriceChart();
 }
 
 // =====================================================================
@@ -1038,7 +1068,7 @@ function recalculate() {
   html += `<div class="rec-explanation">${explanation}</div>`;
   recArea.innerHTML = html;
 
-  renderDropChart();
+  renderPriceChart();
 }
 
 // =====================================================================
