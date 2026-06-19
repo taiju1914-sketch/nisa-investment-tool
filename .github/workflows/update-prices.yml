@@ -77,8 +77,12 @@ jobs:
               if drop < br[3]: return pc[3]
               return pc[4]
 
-          def drop_label(drop, br):
-              if drop < br[0]: return "様子見"
+          def drop_label(drop, cfg):
+              br = cfg["breakpoints"]
+              pc = cfg["pcts"]
+              ip = get_invest_pct(drop, cfg)
+              if ip <= 0: return "様子見"
+              if drop < br[0]: return "少額投資タイミング"
               if drop < br[1]: return "少額投資タイミング"
               if drop < br[2]: return "中程度の投資タイミング ⚠️"
               if drop < br[3]: return "積極投資タイミング 🔔"
@@ -114,7 +118,7 @@ jobs:
                       continue
                   d = result[sym]["dropPct"]
                   ip = get_invest_pct(d, cfg)
-                  lbl = drop_label(d, br)
+                  lbl = drop_label(d, cfg)
                   lines.append(f"  {sym}: ${result[sym]['current']} (高値比 -{d:.2f}%)")
                   lines.append(f"    → {lbl}（買い付け余力の{ip}%投資推奨）")
                   if ip > 0:
