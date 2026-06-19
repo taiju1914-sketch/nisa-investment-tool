@@ -1203,7 +1203,13 @@ function syncNotifyConfigToGitHub() {
   syncTimer = setTimeout(async () => {
     const th = getThresholds();
     const cash = parseFloat(document.getElementById('input-cash').value) || 0;
-    const content = JSON.stringify({breakpoints: th.br, pcts: th.pct, cash: cash}, null, 2);
+    // 評価額をティッカーごとに集計（按分計算用）
+    const tickerAmounts = {};
+    state.securities.forEach(sec => {
+      if (!sec.ticker) return;
+      tickerAmounts[sec.ticker] = (tickerAmounts[sec.ticker] || 0) + sec.amount;
+    });
+    const content = JSON.stringify({breakpoints: th.br, pcts: th.pct, cash: cash, tickerAmounts: tickerAmounts}, null, 2);
     const encoded = btoa(unescape(encodeURIComponent(content)));
     const apiBase = 'https://api.github.com/repos/taiju1914-sketch/nisa-investment-tool/contents/notify-config.json';
     try {

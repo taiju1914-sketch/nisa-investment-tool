@@ -109,10 +109,26 @@ jobs:
           if not channel_token or not user_id:
               print("LINE_CHANNEL_TOKEN または LINE_USER_ID 未設定のためLINE通知スキップ")
           else:
-              br = cfg["breakpoints"]
               cash = cfg.get("cash", 0)
+              ticker_amounts = cfg.get("tickerAmounts", {})
+              grand_total = sum(ticker_amounts.values()) if ticker_amounts else 0
+
+              # 投資対象ティッカーと各投資割合を決定
+              triggered = {}  # sym -> ip
+              for sym in ["VT", "VOO"]:
+                  if sym not in result:
+                      continue
+                  d = result[sym]["dropPct"]
+                  ip = get_invest_pct(d, cfg)
+                  if ip > 0:
+                      triggered[sym] = ip
+
+              # 最大投資割合（複数ティッカーが条件を満たす場合、最大値を使用）
+              max_ip = max(triggered.values()) if triggered else 0
+              total_invest = cash * max_ip / 100 if cash > 0 else 0
+
               lines = ["📊 NISA投資アドバイス（本日の状況）\n"]
-              should_notify = False
+              should_notify = bool(triggered)
               for sym in ["VT", "VOO"]:
                   if sym not in result:
                       lines.append(f"  {sym}: 取得失敗")
@@ -121,18 +137,25 @@ jobs:
                   ip = get_invest_pct(d, cfg)
                   lbl = drop_label(d, cfg)
                   lines.append(f"  {sym}: ${result[sym]['current']} (高値比 -{d:.2f}%)")
-                  if ip > 0 and cash > 0:
-                      amount = int(round(cash * ip / 100))
+                  if ip > 0 and cash > 0 and total_invest > 0:
+                      # 評価額比率で按分
+                      sym_amount = ticker_amounts.get(sym, 0)
+                      if grand_total > 0 and sym_amount > 0:
+                          ratio = sym_amount / grand_total
+                          sym_invest = int(round(total_invest * ratio))
+                      else:
+                          # 評価額不明の場合は均等按分
+                          sym_invest = int(round(total_invest / len(triggered)))
                       lines.append(f"    → {lbl}")
-                      lines.append(f"      買い付け余力の{ip}% = 約{amount:,}円を投資推奨")
+                      lines.append(f"      推奨投資額: 約{sym_invest:,}円")
                   elif ip > 0:
                       lines.append(f"    → {lbl}（買い付け余力の{ip}%投資推奨）")
                   else:
                       lines.append(f"    → {lbl}")
-                  if ip > 0:
-                      should_notify = True
 
-              if cash > 0:
+              if cash > 0 and total_invest > 0:
+                  lines.append(f"\n買い付け余力: {int(round(cash)):,}円 → 合計 約{int(round(total_invest)):,}円を投資推奨")
+              elif cash > 0:
                   lines.append(f"\n（買い付け余力: {int(round(cash)):,}円）")
 
               if should_notify:
