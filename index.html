@@ -364,6 +364,34 @@
   </div>
 
   <!-- Step 6: Settings -->
+  <!-- LINE通知設定 -->
+  <div class="card">
+    <div class="card-header">
+      <div class="step-badge" style="background:#06c755;">L</div>
+      <h2>LINE通知設定</h2>
+    </div>
+    <div class="card-body">
+      <p style="font-size:0.88rem;color:#1e293b;margin-bottom:14px;">
+        毎朝10時（平日）に下落率と投資推奨をLINEで受け取れます。一度設定するだけで自動通知されます。
+      </p>
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:16px;font-size:0.85rem;line-height:2;">
+        <strong>設定手順（5分で完了）</strong><br>
+        <span style="color:#166534;">
+          ① <a href="https://notify-bot.line.me/ja/" target="_blank" style="color:#16a34a;font-weight:600;">notify-bot.line.me</a> を開いてLINEログイン<br>
+          ② 「マイページ」→「トークンを発行する」をクリック<br>
+          ③ トークン名に「NISA通知」と入力 → 通知先に「1:1でLINE Notifyから通知を受け取る」を選択 → 発行<br>
+          ④ 表示されたトークン（英数字の文字列）をコピー<br>
+          ⑤ <a href="https://github.com/taiju1914-sketch/nisa-investment-tool/settings/secrets/actions/new" target="_blank" style="color:#16a34a;font-weight:600;">GitHubのシークレット設定</a> を開く<br>
+          ⑥ Name に <code style="background:#dcfce7;padding:2px 6px;border-radius:4px;">LINE_NOTIFY_TOKEN</code>、Secret にコピーしたトークンを貼り付けて「Add secret」
+        </span>
+      </div>
+      <p style="font-size:0.8rem;color:#64748b;margin-top:10px;">
+        設定後、ActionsタブでUpdate Price Dataを手動実行するとすぐにLINEが届きます。通知内容はステップ6の設定に連動します。
+      </p>
+    </div>
+  </div>
+
+  <!-- Step 6: Settings -->
   <div class="card">
     <div class="card-header">
       <div class="step-badge">6</div>
