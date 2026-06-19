@@ -204,7 +204,15 @@
 
   .hidden { display: none !important; }
 
-  /* Price chart legend */
+  /* Price chart */
+  .chart-range-btns { display: flex; gap: 4px; }
+  .chart-range-btn {
+    padding: 4px 10px; border-radius: 6px; border: 1px solid #e2e8f0;
+    background: #fff; color: #64748b; font-size: 0.78rem; font-weight: 500;
+    cursor: pointer; transition: all 0.12s;
+  }
+  .chart-range-btn:hover { border-color: #1a56db; color: #1a56db; }
+  .chart-range-btn.active { background: #1a56db; border-color: #1a56db; color: #fff; font-weight: 600; }
   .chart-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; font-size: 0.8rem; color: #475569; }
   .chart-legend-item { display: flex; align-items: center; gap: 6px; }
   .chart-legend-dot { width: 14px; height: 3px; border-radius: 2px; }
@@ -314,7 +322,15 @@
         </div>
       </div>
       <div id="price-chart-area" style="display:none; margin-top:20px;">
-        <div style="font-size:0.82rem;font-weight:600;color:#475569;margin-bottom:10px;">過去1年間の株価推移（1年前比 % 変化 — グラフにマウスを当てると詳細表示）</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+          <div style="font-size:0.82rem;font-weight:600;color:#475569;">株価推移（1年前比 % 変化）<span style="font-weight:400;color:#94a3b8;font-size:0.78rem;"> — グラフにマウスを当てると詳細</span></div>
+          <div class="chart-range-btns">
+            <button class="chart-range-btn" onclick="setChartRange(1)"  id="range-1m">1ヶ月</button>
+            <button class="chart-range-btn" onclick="setChartRange(3)"  id="range-3m">3ヶ月</button>
+            <button class="chart-range-btn" onclick="setChartRange(6)"  id="range-6m">6ヶ月</button>
+            <button class="chart-range-btn active" onclick="setChartRange(12)" id="range-12m">1年</button>
+          </div>
+        </div>
         <canvas id="price-chart" style="width:100%;border-radius:8px;"></canvas>
       </div>
     </div>
@@ -745,26 +761,38 @@ function drawChart(canvas, datasets) {
     ctx.fillText((v >= 0 ? '+' : '') + v + '%', PAD.left - 6, y);
   });
 
-  // X 軸（月ラベル）
+  // X 軸（月ラベル — 最小間隔 50px で間引き）
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  ctx.fillStyle = '#94a3b8';
+  ctx.font = '11px system-ui, sans-serif';
+  const MIN_X_GAP = 52;
+  let lastLabelX = -MIN_X_GAP;
   let lastMonth = '';
+  let lastYear = '';
   allDates.forEach(d => {
     const mon = d.slice(0, 7);
-    if (mon !== lastMonth) {
-      lastMonth = mon;
-      const x = xOf(d);
-      const [y, m] = mon.split('-');
-      ctx.fillText(`${m}月`, x, PAD.top + CH + 8);
-    }
-  });
-  // 年ラベル（1月）
-  ctx.fillStyle = '#475569';
-  ctx.font = 'bold 11px system-ui, sans-serif';
-  allDates.forEach(d => {
-    if (d.slice(5, 7) === '01') {
-      ctx.fillText(d.slice(0, 4) + '年', xOf(d), PAD.top + CH + 22);
+    const yr  = d.slice(0, 4);
+    if (mon === lastMonth) return;
+    const x = xOf(d);
+    if (x - lastLabelX < MIN_X_GAP) return;
+    lastMonth = mon;
+    lastLabelX = x;
+    // 縦グリッド補助線
+    ctx.strokeStyle = '#f1f5f9';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, PAD.top + CH); ctx.stroke();
+    ctx.setLineDash([]);
+    // 月ラベル
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText(`${d.slice(5, 7)}月`, x, PAD.top + CH + 6);
+    // 年変わりは太字で年も表示
+    if (yr !== lastYear) {
+      lastYear = yr;
+      ctx.fillStyle = '#475569';
+      ctx.font = 'bold 11px system-ui, sans-serif';
+      ctx.fillText(yr + '年', x, PAD.top + CH + 20);
+      ctx.font = '11px system-ui, sans-serif';
     }
   });
 
@@ -813,13 +841,34 @@ function drawChart(canvas, datasets) {
   return { xOf, yOf, allDates, norm, PAD, CW, CH };
 }
 
+let chartRangeMonths = 12;
+
+function setChartRange(months) {
+  chartRangeMonths = months;
+  document.querySelectorAll('.chart-range-btn').forEach(b => b.classList.remove('active'));
+  const ids = { 1: 'range-1m', 3: 'range-3m', 6: 'range-6m', 12: 'range-12m' };
+  const el = document.getElementById(ids[months]);
+  if (el) el.classList.add('active');
+  renderPriceChart();
+}
+
+function filterByRange(history, months) {
+  if (!history || history.length === 0) return history;
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - months);
+  const cutStr = cutoff.toISOString().slice(0, 10);
+  const filtered = history.filter(p => p.date >= cutStr);
+  return filtered.length > 1 ? filtered : history.slice(-Math.min(history.length, 20));
+}
+
 function renderPriceChart() {
   const area = document.getElementById('price-chart-area');
   const canvas = document.getElementById('price-chart');
-  const datasets = Object.entries(priceHistory).filter(([, h]) => h && h.length > 0);
-  if (datasets.length === 0) { area.style.display = 'none'; return; }
+  const raw = Object.entries(priceHistory).filter(([, h]) => h && h.length > 0);
+  if (raw.length === 0) { area.style.display = 'none'; return; }
   area.style.display = 'block';
 
+  const datasets = raw.map(([ticker, history]) => [ticker, filterByRange(history, chartRangeMonths)]);
   const chartState = drawChart(canvas, datasets);
 
   // ホバーツールチップ
