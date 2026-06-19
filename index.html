@@ -203,6 +203,47 @@
   .section-note { font-size: 0.82rem; color: #94a3b8; margin-top: 10px; }
 
   .hidden { display: none !important; }
+
+  /* Drop gauge chart */
+  .gauge-row { margin-bottom: 16px; }
+  .gauge-label { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
+  .gauge-label-name { font-size: 0.88rem; font-weight: 600; color: #1e293b; }
+  .gauge-label-pct { font-size: 0.95rem; font-weight: 700; }
+  .gauge-label-pct.green  { color: #16a34a; }
+  .gauge-label-pct.yellow { color: #ca8a04; }
+  .gauge-label-pct.orange { color: #ea580c; }
+  .gauge-label-pct.red    { color: #dc2626; }
+  .gauge-track {
+    position: relative; height: 28px; border-radius: 14px;
+    background: linear-gradient(to right, #dcfce7 0%, #dcfce7 var(--z1), #fef9c3 var(--z1), #fef9c3 var(--z2), #ffedd5 var(--z2), #ffedd5 var(--z3), #fee2e2 var(--z3), #fee2e2 100%);
+    overflow: visible;
+  }
+  .gauge-fill {
+    position: absolute; top: 4px; left: 0; height: 20px; border-radius: 10px;
+    transition: width 0.6s ease;
+    min-width: 4px;
+  }
+  .gauge-fill.green  { background: #16a34a; }
+  .gauge-fill.yellow { background: #ca8a04; }
+  .gauge-fill.orange { background: #ea580c; }
+  .gauge-fill.red    { background: #dc2626; }
+  .gauge-tick {
+    position: absolute; top: 0; width: 2px; height: 28px;
+    background: rgba(100,116,139,0.35); transform: translateX(-1px);
+  }
+  .gauge-tick-label {
+    position: absolute; top: 32px; font-size: 0.7rem; color: #94a3b8;
+    transform: translateX(-50%); white-space: nowrap;
+  }
+  .gauge-zone-label {
+    position: absolute; top: 7px; font-size: 0.68rem; color: rgba(0,0,0,0.35);
+    pointer-events: none; white-space: nowrap;
+  }
+  .gauge-wrapper { position: relative; padding-bottom: 28px; }
+  .gauge-invest-badge {
+    margin-top: 6px; font-size: 0.78rem; color: #64748b;
+  }
+  .gauge-invest-badge strong { color: #1a56db; }
 </style>
 </head>
 <body>
@@ -307,6 +348,10 @@
             <input type="number" id="drop-VOO" placeholder="例: 8.3" step="0.1" min="0" max="100" oninput="onManualDrop('VOO')" />
           </div></div>
         </div>
+      </div>
+      <div id="drop-chart-area" style="display:none; margin-top:20px;">
+        <div style="font-size:0.82rem;font-weight:600;color:#475569;margin-bottom:10px;">下落率ゲージ（しきい値との比較）</div>
+        <div id="drop-chart"></div>
       </div>
     </div>
   </div>
@@ -675,6 +720,61 @@ function updateDropBadge(ticker, pct) {
   badge.textContent = `${arrow} 高値比 ${pct.toFixed(2)}% 下落`;
 }
 
+function renderDropChart() {
+  const tickers = Object.keys(state.tickerDrops).filter(t => state.tickerDrops[t] !== null);
+  const chartArea = document.getElementById('drop-chart-area');
+  const chart = document.getElementById('drop-chart');
+  if (tickers.length === 0) { chartArea.style.display = 'none'; return; }
+  chartArea.style.display = 'block';
+
+  const th = getThresholds();
+  const br = th.br;
+  const maxScale = Math.max(30, ...br, ...tickers.map(t => state.tickerDrops[t] || 0)) * 1.15;
+
+  const pctOf = v => Math.min(100, (v / maxScale) * 100).toFixed(2) + '%';
+  const z1 = pctOf(br[0]), z2 = pctOf(br[1]), z3 = pctOf(br[2]);
+
+  chart.innerHTML = tickers.map(ticker => {
+    const drop = state.tickerDrops[ticker];
+    const cls = drop < br[0] ? 'green' : drop < br[1] ? 'yellow' : drop < br[2] ? 'orange' : 'red';
+    const fillW = pctOf(drop);
+    const investPct = (getPct(drop, th) * 100).toFixed(0);
+    const names = { VT: 'VT（全世界株）', VOO: 'VOO（S&P500）' };
+    const label = names[ticker] || ticker;
+
+    const ticks = br.map((v, i) => `
+      <div class="gauge-tick" style="left:${pctOf(v)}"></div>
+      <div class="gauge-tick-label" style="left:${pctOf(v)}">${v}%</div>
+    `).join('');
+
+    const zoneLabels = [
+      { pos: `calc(${pctOf(0)}% + 4px)`, text: '様子見' },
+      { pos: `calc((${pctOf(br[0])} + ${pctOf(br[1])})/2)`, text: '少額' },
+      { pos: `calc((${pctOf(br[1])} + ${pctOf(br[2])})/2)`, text: '中程度' },
+      { pos: `calc((${pctOf(br[2])} + ${pctOf(br[3])})/2)`, text: '積極' },
+      { pos: `calc((${pctOf(br[3])} + 100%)/2)`, text: '最大' },
+    ].map(z => `<div class="gauge-zone-label" style="left:${z.pos}">${z.text}</div>`).join('');
+
+    return `
+      <div class="gauge-row">
+        <div class="gauge-label">
+          <span class="gauge-label-name">${label}</span>
+          <span class="gauge-label-pct ${cls}">▼ ${drop.toFixed(2)}% 下落</span>
+        </div>
+        <div class="gauge-wrapper">
+          <div class="gauge-track" style="--z1:${z1};--z2:${z2};--z3:${z3}">
+            <div class="gauge-fill ${cls}" style="width:${fillW}"></div>
+            ${ticks}
+            ${zoneLabels}
+          </div>
+        </div>
+        <div class="gauge-invest-badge">
+          → この下落率では買い付け余力の <strong>${investPct}%</strong> を投資
+        </div>
+      </div>`;
+  }).join('');
+}
+
 function renderTickerData(ticker, info) {
   const container = document.getElementById(`data-${ticker}`);
   if (!container) return;
@@ -748,6 +848,7 @@ async function fetchMarketData() {
   }
 
   recalculate();
+  renderDropChart();
 }
 
 // =====================================================================
@@ -936,6 +1037,8 @@ function recalculate() {
 
   html += `<div class="rec-explanation">${explanation}</div>`;
   recArea.innerHTML = html;
+
+  renderDropChart();
 }
 
 // =====================================================================
