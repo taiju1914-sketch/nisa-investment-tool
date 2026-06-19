@@ -392,16 +392,26 @@
       <p style="font-size:0.8rem;color:#64748b;margin-top:10px;">
         設定後、ActionsタブでUpdate Price Dataを手動実行するとすぐにLINEが届きます。
       </p>
-      <div style="margin-top:14px;padding:14px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;">
-        <p style="font-size:0.85rem;font-weight:600;color:#92400e;margin-bottom:8px;">📤 LINE通知のしきい値をステップ6の設定と同期する</p>
-        <p style="font-size:0.82rem;color:#78350f;margin-bottom:10px;">ステップ6で変更した設定をLINE通知に反映するには、以下のJSONをGitHubの <code style="background:#fef3c7;padding:1px 4px;border-radius:3px;">notify-config.json</code> に貼り付けてください。</p>
-        <div style="position:relative;">
-          <pre id="notify-config-preview" style="background:#1e293b;color:#e2e8f0;padding:12px;border-radius:8px;font-size:0.82rem;overflow-x:auto;margin:0;">{}</pre>
-          <button onclick="copyNotifyConfig()" style="position:absolute;top:8px;right:8px;background:#334155;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:0.78rem;cursor:pointer;">コピー</button>
+      <div style="margin-top:14px;padding:14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;">
+        <p style="font-size:0.85rem;font-weight:600;color:#0c4a6e;margin-bottom:8px;">🔄 LINE通知しきい値を自動同期</p>
+        <p style="font-size:0.82rem;color:#075985;margin-bottom:10px;">GitHubトークンを登録すると、ステップ6の設定変更が自動でLINE通知に反映されます。</p>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+          <input type="password" id="gh-pat-input" placeholder="GitHubトークンを貼り付け（ghp_...）"
+            style="flex:1;padding:7px 10px;border:1px solid #7dd3fc;border-radius:6px;font-size:0.82rem;outline:none;">
+          <button onclick="saveGhPat()" style="background:#0284c7;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:0.82rem;cursor:pointer;white-space:nowrap;">保存</button>
+          <button onclick="clearGhPat()" style="background:#e2e8f0;color:#475569;border:none;border-radius:6px;padding:7px 10px;font-size:0.82rem;cursor:pointer;">削除</button>
         </div>
-        <p style="font-size:0.78rem;color:#92400e;margin-top:8px;">
-          貼り付け先：<a href="https://github.com/taiju1914-sketch/nisa-investment-tool/edit/main/notify-config.json" target="_blank" style="color:#d97706;font-weight:600;">GitHubでnotify-config.jsonを編集</a> → 内容を全て上のJSONで置き換えて「Commit changes」
-        </p>
+        <div id="gh-sync-status" style="font-size:0.8rem;color:#075985;min-height:1.4em;"></div>
+        <details style="margin-top:10px;">
+          <summary style="font-size:0.78rem;color:#0369a1;cursor:pointer;">トークンの取得方法</summary>
+          <div style="font-size:0.78rem;color:#075985;line-height:1.9;margin-top:6px;">
+            ① <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" style="color:#0284c7;font-weight:600;">GitHub Fine-grained token発行ページ</a> を開く<br>
+            ② Token name：「NISA同期」など / Expiration：任意<br>
+            ③ Repository access：「Only select repositories」→ このリポジトリを選択<br>
+            ④ Permissions → Contents：「Read and write」に変更<br>
+            ⑤ 「Generate token」→ 表示されたトークン（ghp_ または github_pat_）をコピーして上に貼り付け
+          </div>
+        </details>
       </div>
     </div>
   </div>
@@ -1160,20 +1170,57 @@ function onThresholdInput() {
 }
 
 function updateNotifyConfigPreview() {
-  const el = document.getElementById('notify-config-preview');
-  if (!el) return;
-  const th = getThresholds();
-  el.textContent = JSON.stringify({breakpoints: th.br, pcts: th.pct}, null, 2);
+  syncNotifyConfigToGitHub();
 }
 
-function copyNotifyConfig() {
-  const el = document.getElementById('notify-config-preview');
+function saveGhPat() {
+  const val = document.getElementById('gh-pat-input').value.trim();
+  if (!val) return;
+  localStorage.setItem('gh_pat', val);
+  document.getElementById('gh-pat-input').value = '●'.repeat(12);
+  setGhSyncStatus('info', 'トークンを保存しました。設定を変更すると自動同期されます。');
+}
+
+function clearGhPat() {
+  localStorage.removeItem('gh_pat');
+  document.getElementById('gh-pat-input').value = '';
+  setGhSyncStatus('', '');
+}
+
+function setGhSyncStatus(type, msg) {
+  const el = document.getElementById('gh-sync-status');
   if (!el) return;
-  navigator.clipboard.writeText(el.textContent).then(() => {
-    const btn = el.parentElement.querySelector('button');
-    btn.textContent = 'コピー済み ✓';
-    setTimeout(() => btn.textContent = 'コピー', 2000);
-  });
+  const colors = { info: '#075985', ok: '#166534', err: '#991b1b', '': '#475569' };
+  el.style.color = colors[type] || '#475569';
+  el.textContent = msg;
+}
+
+let syncTimer = null;
+function syncNotifyConfigToGitHub() {
+  const token = localStorage.getItem('gh_pat');
+  if (!token) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(async () => {
+    const th = getThresholds();
+    const content = JSON.stringify({breakpoints: th.br, pcts: th.pct}, null, 2);
+    const encoded = btoa(unescape(encodeURIComponent(content)));
+    const apiBase = 'https://api.github.com/repos/taiju1914-sketch/nisa-investment-tool/contents/notify-config.json';
+    try {
+      setGhSyncStatus('info', '同期中...');
+      const res = await fetch(apiBase, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' } });
+      const current = res.ok ? await res.json() : null;
+      const body = JSON.stringify({ message: 'Update notify-config from web UI', content: encoded, ...(current ? { sha: current.sha } : {}) });
+      const put = await fetch(apiBase, { method: 'PUT', headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' }, body });
+      if (put.ok) {
+        setGhSyncStatus('ok', '✓ GitHubに同期しました（' + new Date().toLocaleTimeString('ja-JP') + '）');
+      } else {
+        const err = await put.json();
+        setGhSyncStatus('err', '同期失敗: ' + (err.message || put.status));
+      }
+    } catch(e) {
+      setGhSyncStatus('err', '同期エラー: ' + e.message);
+    }
+  }, 800);
 }
 
 // =====================================================================
@@ -1321,7 +1368,13 @@ document.getElementById('input-cash').addEventListener('input', function() {
 
 // 初期状態でVT/VOOカードを表示
 state.tickerDrops = { VT: null, VOO: null };
-updateNotifyConfigPreview();
+
+// GitHubトークンが保存済みなら入力欄にマスク表示
+if (localStorage.getItem('gh_pat')) {
+  const inp = document.getElementById('gh-pat-input');
+  if (inp) inp.value = '●'.repeat(12);
+  setGhSyncStatus('info', 'トークン登録済み。設定変更で自動同期されます。');
+}
 </script>
 </body>
 </html>
