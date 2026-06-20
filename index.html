@@ -421,10 +421,14 @@
           <summary style="font-size:0.78rem;color:#0369a1;cursor:pointer;">トークンの取得方法</summary>
           <div style="font-size:0.78rem;color:#075985;line-height:1.9;margin-top:6px;">
             ① <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" style="color:#0284c7;font-weight:600;">GitHub Fine-grained token発行ページ</a> を開く<br>
-            ② Token name：「NISA同期」など / Expiration：任意<br>
-            ③ Repository access：「Only select repositories」→ このリポジトリを選択<br>
-            ④ Permissions → Contents：「Read and write」に変更<br>
-            ⑤ 「Generate token」→ 表示されたトークン（ghp_ または github_pat_）をコピーして上に貼り付け
+            ② Token name：「NISA通知」など好きな名前を入力<br>
+            ③ Expiration（有効期限）：任意（長めに設定推奨）<br>
+            ④ Repository access：「Only select repositories」→「nisa-investment-tool」を選択<br>
+            ⑤ Permissions（権限）を以下の2つに変更：<br>
+            &nbsp;&nbsp;&nbsp;・<strong>Contents</strong>：Read and write（設定の自動同期に必要）<br>
+            &nbsp;&nbsp;&nbsp;・<strong>Actions</strong>：Read and write（テスト送信ボタンに必要）<br>
+            ⑥ 「Generate token」→ 表示されたトークン（github_pat_ から始まる文字列）をコピー<br>
+            ⑦ 上の入力欄に貼り付けて「保存」を押す
           </div>
         </details>
       </div>
