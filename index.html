@@ -508,17 +508,20 @@ function processCSV(file) {
   reader.onload = e => {
     try {
       const buffer = e.target.result;
-      // Shift-JIS → UTF-16 変換（iOS Safari対応）
-      let text;
-      try {
-        text = new TextDecoder('shift-jis').decode(new Uint8Array(buffer));
-      } catch(e1) {
+      const bytes = new Uint8Array(buffer);
+      // CP932（Windows-31J）はSBI証券CSVの実際の文字コード
+      // 'windows-1252'はCP932のフォールバックとしてChromeで動作しないため
+      // 順番に試してeuc-jpも含めて確実にデコードする
+      const encodings = ['windows-31j', 'shift-jis', 'euc-jp', 'utf-8'];
+      let text = '';
+      for (const enc of encodings) {
         try {
-          text = new TextDecoder('windows-1252').decode(new Uint8Array(buffer));
-        } catch(e2) {
-          text = new TextDecoder('utf-8').decode(new Uint8Array(buffer));
-        }
+          const decoded = new TextDecoder(enc, {fatal: true}).decode(bytes);
+          text = decoded;
+          break;
+        } catch(e) { continue; }
       }
+      if (!text) text = new TextDecoder('utf-8', {fatal: false}).decode(bytes);
       parseCSV(text, file.name);
     }
     catch(err) { showUploadStatus('error', 'CSVの解析に失敗しました: ' + err.message); }
