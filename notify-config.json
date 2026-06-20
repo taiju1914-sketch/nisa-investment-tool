@@ -13,8 +13,5 @@
     50
   ],
   "cash": 150042,
-  "tickerAmounts": {
-    "VOO": 606558,
-    "VT": 1382686
-  }
+  "tickerAmounts": {}
 }
