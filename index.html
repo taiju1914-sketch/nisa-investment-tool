@@ -506,11 +506,25 @@ csvInput.addEventListener('change', () => { if (csvInput.files[0]) processCSV(cs
 function processCSV(file) {
   const reader = new FileReader();
   reader.onload = e => {
-    try { parseCSV(e.target.result, file.name); }
+    try {
+      const buffer = e.target.result;
+      // Shift-JIS → UTF-16 変換（iOS Safari対応）
+      let text;
+      try {
+        text = new TextDecoder('shift-jis').decode(new Uint8Array(buffer));
+      } catch(e1) {
+        try {
+          text = new TextDecoder('windows-1252').decode(new Uint8Array(buffer));
+        } catch(e2) {
+          text = new TextDecoder('utf-8').decode(new Uint8Array(buffer));
+        }
+      }
+      parseCSV(text, file.name);
+    }
     catch(err) { showUploadStatus('error', 'CSVの解析に失敗しました: ' + err.message); }
   };
   reader.onerror = () => showUploadStatus('error', 'ファイルの読み込みに失敗しました。');
-  reader.readAsText(file, 'Shift-JIS');
+  reader.readAsArrayBuffer(file);
 }
 
 // CSV1行をフィールド配列に分割（クォート対応）
