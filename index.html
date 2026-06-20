@@ -720,7 +720,7 @@ function applySecurities() {
     const sel = document.getElementById(`sel-${idx}`);
     if (!sel || sel.value === 'none') return;
     const name   = sel.dataset.name;
-    const amount = parseInt(sel.dataset.amount, 10) || 0;
+    const amount = parseNum(sel.dataset.amount) || 0;
     let ticker = sel.value;
     if (ticker === 'custom') {
       ticker = (document.getElementById(`custom-${idx}`).value.trim().toUpperCase()) || null;
