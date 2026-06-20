@@ -412,6 +412,11 @@
           <button onclick="clearGhPat()" style="background:#e2e8f0;color:#475569;border:none;border-radius:6px;padding:7px 10px;font-size:0.82rem;cursor:pointer;">削除</button>
         </div>
         <div id="gh-sync-status" style="font-size:0.8rem;color:#075985;min-height:1.4em;"></div>
+        <button onclick="triggerLineNotify()" id="test-notify-btn"
+          style="margin-top:10px;width:100%;background:#06c755;color:#fff;border:none;border-radius:8px;padding:10px;font-size:0.9rem;font-weight:600;cursor:pointer;">
+          📩 今すぐLINE通知をテスト送信
+        </button>
+        <div id="test-notify-status" style="font-size:0.8rem;color:#075985;min-height:1.4em;margin-top:6px;"></div>
         <details style="margin-top:10px;">
           <summary style="font-size:0.78rem;color:#0369a1;cursor:pointer;">トークンの取得方法</summary>
           <div style="font-size:0.78rem;color:#075985;line-height:1.9;margin-top:6px;">
@@ -1213,6 +1218,48 @@ function clearGhPat() {
   localStorage.removeItem('gh_pat');
   document.getElementById('gh-pat-input').value = '';
   setGhSyncStatus('', '');
+}
+
+async function triggerLineNotify() {
+  const token = localStorage.getItem('gh_pat');
+  const btn = document.getElementById('test-notify-btn');
+  const statusEl = document.getElementById('test-notify-status');
+  if (!token) {
+    statusEl.style.color = '#991b1b';
+    statusEl.textContent = 'GitHubトークンが未登録です。先にトークンを保存してください。';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = '送信中...';
+  statusEl.style.color = '#075985';
+  statusEl.textContent = 'GitHub Actionsを起動しています...';
+  try {
+    const res = await fetch(
+      'https://api.github.com/repos/taiju1914-sketch/nisa-investment-tool/actions/workflows/update-prices.yml/dispatches',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/vnd.github+json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ref: 'main' }),
+      }
+    );
+    if (res.status === 204) {
+      statusEl.style.color = '#166534';
+      statusEl.textContent = '✓ ワークフローを起動しました。1〜2分後にLINEに届きます。';
+    } else {
+      const err = await res.json().catch(() => ({}));
+      statusEl.style.color = '#991b1b';
+      statusEl.textContent = `失敗 (${res.status}): ${err.message || 'トークンにActions権限が必要です'}`;
+    }
+  } catch(e) {
+    statusEl.style.color = '#991b1b';
+    statusEl.textContent = 'エラー: ' + e.message;
+  }
+  btn.disabled = false;
+  btn.textContent = '📩 今すぐLINE通知をテスト送信';
 }
 
 function setGhSyncStatus(type, msg) {
