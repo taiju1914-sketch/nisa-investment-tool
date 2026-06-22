@@ -1556,6 +1556,14 @@ function restoreStateFromLocal() {
 state.tickerDrops = { VT: null, VOO: null };
 restoreStateFromLocal();
 
+// ページを開いたら自動でマーケットデータを取得・更新
+(async () => {
+  await fetchMarketData();
+  // 買い付け余力が入力済みなら自動計算
+  const cash = parseFloat(document.getElementById('input-cash').value) || 0;
+  if (cash > 0) recalculate();
+})();
+
 // GitHubトークンが保存済みなら入力欄にマスク表示
 if (localStorage.getItem('gh_pat')) {
   const inp = document.getElementById('gh-pat-input');
