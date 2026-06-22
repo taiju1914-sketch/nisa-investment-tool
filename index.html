@@ -732,6 +732,9 @@ function applySecurities() {
 
   state.securities = securities;
 
+  // localStorageに保存
+  saveStateToLocal();
+
   // ticker cards を再構築
   rebuildTickerCards([...tickers]);
 
@@ -1489,12 +1492,69 @@ function showUploadStatus(type, msg) {
 
 document.getElementById('input-cash').addEventListener('input', function() {
   this.classList.remove('auto-filled');
+  saveStateToLocal();
   recalculate();
   syncNotifyConfigToGitHub();
 });
 
+// =====================================================================
+// 状態の保存・復元（localStorageで銘柄・現金を永続化）
+// =====================================================================
+function saveStateToLocal() {
+  const cash = parseFloat(document.getElementById('input-cash').value) || 0;
+  // ETF割り当てをテーブルから読み取って保存
+  const rows = document.querySelectorAll('#sec-tbody tr');
+  const saved = [];
+  rows.forEach((tr, idx) => {
+    const sel = document.getElementById(`sel-${idx}`);
+    if (!sel) return;
+    let ticker = sel.value;
+    if (ticker === 'custom') ticker = document.getElementById(`custom-${idx}`)?.value.trim().toUpperCase() || 'custom';
+    saved.push({ name: sel.dataset.name, amount: parseNum(sel.dataset.amount) || 0, ticker });
+  });
+  localStorage.setItem('nisa_securities', JSON.stringify(saved));
+  localStorage.setItem('nisa_cash', String(cash));
+}
+
+function restoreStateFromLocal() {
+  const savedSec = localStorage.getItem('nisa_securities');
+  const savedCash = localStorage.getItem('nisa_cash');
+  if (!savedSec) return;
+  try {
+    const securities = JSON.parse(savedSec);
+    if (!securities.length) return;
+    // テーブルを再描画
+    renderSecuritiesTable(securities);
+    // ETF割り当てを復元
+    securities.forEach((sec, idx) => {
+      const sel = document.getElementById(`sel-${idx}`);
+      if (!sel) return;
+      const validValues = ETF_OPTIONS.map(o => o.value);
+      if (validValues.includes(sec.ticker)) {
+        sel.value = sec.ticker;
+      } else {
+        sel.value = 'custom';
+        const customEl = document.getElementById(`custom-${idx}`);
+        if (customEl) { customEl.value = sec.ticker; customEl.classList.remove('hidden'); }
+      }
+      onSelectChange(idx);
+    });
+    document.getElementById('card-securities').classList.remove('hidden');
+    // 現金を復元
+    if (savedCash) {
+      const el = document.getElementById('input-cash');
+      el.value = savedCash;
+      el.classList.add('auto-filled');
+    }
+    // 銘柄を確定して計算
+    applySecurities();
+    showUploadStatus('success', '前回の銘柄設定を復元しました。CSVを再アップロードすると更新できます。');
+  } catch(e) { /* 復元失敗は無視 */ }
+}
+
 // 初期状態でVT/VOOカードを表示
 state.tickerDrops = { VT: null, VOO: null };
+restoreStateFromLocal();
 
 // GitHubトークンが保存済みなら入力欄にマスク表示
 if (localStorage.getItem('gh_pat')) {
