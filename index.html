@@ -1316,18 +1316,27 @@ function syncNotifyConfigToGitHub() {
     const content = JSON.stringify({breakpoints: th.br, pcts: th.pct, cash: cash, tickerAmounts: tickerAmounts}, null, 2);
     const encoded = btoa(unescape(encodeURIComponent(content)));
     const apiBase = 'https://api.github.com/repos/taiju1914-sketch/nisa-investment-tool/contents/notify-config.json';
+    const headers = { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' };
     try {
       setGhSyncStatus('info', '同期中...');
-      const res = await fetch(apiBase, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' } });
-      const current = res.ok ? await res.json() : null;
-      const body = JSON.stringify({ message: 'Update notify-config from web UI', content: encoded, ...(current ? { sha: current.sha } : {}) });
-      const put = await fetch(apiBase, { method: 'PUT', headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' }, body });
-      if (put.ok) {
-        setGhSyncStatus('ok', '✓ GitHubに同期しました（' + new Date().toLocaleTimeString('ja-JP') + '）');
-      } else {
+      // 毎回最新のSHAを取得してから書き込む（競合防止）
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const res = await fetch(apiBase, { headers });
+        const current = res.ok ? await res.json() : null;
+        const body = JSON.stringify({ message: 'Update notify-config from web UI', content: encoded, ...(current ? { sha: current.sha } : {}) });
+        const put = await fetch(apiBase, { method: 'PUT', headers, body });
+        if (put.ok) {
+          setGhSyncStatus('ok', '✓ GitHubに同期しました（' + new Date().toLocaleTimeString('ja-JP') + '）');
+          return;
+        }
         const err = await put.json();
-        setGhSyncStatus('err', '同期失敗: ' + (err.message || put.status));
+        // SHA競合(409)の場合はリトライ、それ以外はエラー表示
+        if (put.status !== 409) {
+          setGhSyncStatus('err', '同期失敗: ' + (err.message || put.status));
+          return;
+        }
       }
+      setGhSyncStatus('err', '同期失敗: しばらく待ってから再試行してください');
     } catch(e) {
       setGhSyncStatus('err', '同期エラー: ' + e.message);
     }
