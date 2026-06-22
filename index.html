@@ -181,6 +181,18 @@
   .summary-chip { background: #f1f5f9; border-radius: 20px; padding: 5px 12px; font-size: 0.82rem; color: #475569; }
   .summary-chip strong { color: #1e293b; }
 
+  /* Preset buttons */
+  .preset-btns { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  .preset-btn {
+    padding: 8px 20px; border-radius: 20px; border: 2px solid #e2e8f0;
+    background: #fff; color: #475569; font-size: 0.88rem; font-weight: 600;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .preset-btn:hover { border-color: #1a56db; color: #1a56db; }
+  .preset-btn.active { background: #1a56db; border-color: #1a56db; color: #fff; }
+  .preset-btn.reset-btn { border-color: #cbd5e1; color: #94a3b8; }
+  .preset-btn.reset-btn:hover { border-color: #64748b; color: #475569; background: #f8fafc; }
+
   /* Settings */
   .settings-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
   .settings-table th { background: #f1f5f9; padding: 10px 14px; text-align: left; font-weight: 600; color: #475569; font-size: 0.82rem; }
@@ -191,6 +203,26 @@
   .section-note { font-size: 0.82rem; color: #94a3b8; margin-top: 10px; }
 
   .hidden { display: none !important; }
+
+  /* Price chart */
+  .chart-range-btns { display: flex; gap: 4px; }
+  .chart-range-btn {
+    padding: 4px 10px; border-radius: 6px; border: 1px solid #e2e8f0;
+    background: #fff; color: #64748b; font-size: 0.78rem; font-weight: 500;
+    cursor: pointer; transition: all 0.12s;
+  }
+  .chart-range-btn:hover { border-color: #1a56db; color: #1a56db; }
+  .chart-range-btn.active { background: #1a56db; border-color: #1a56db; color: #fff; font-weight: 600; }
+  .ticker-toggle-btn {
+    padding: 4px 12px; border-radius: 6px; border: 2px solid; font-size: 0.82rem;
+    font-weight: 700; cursor: pointer; transition: all 0.15s; opacity: 0.35;
+  }
+  .ticker-toggle-btn.active-vt  { border-color: #1a56db; color: #1a56db; background: #fff; opacity: 1; }
+  .ticker-toggle-btn.active-voo { border-color: #f97316; color: #f97316; background: #fff; opacity: 1; }
+  .ticker-toggle-btn.off { background: #fff; border-color: #cbd5e1; color: #94a3b8; opacity: 0.5; }
+  .chart-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; font-size: 0.8rem; color: #475569; }
+  .chart-legend-item { display: flex; align-items: center; gap: 6px; }
+  .chart-legend-dot { width: 14px; height: 3px; border-radius: 2px; }
 </style>
 </head>
 <body>
@@ -208,6 +240,16 @@
       <h2>CSVアップロード</h2>
     </div>
     <div class="card-body">
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px;margin-bottom:16px;">
+        <p style="font-size:0.85rem;color:#1e3a8a;margin-bottom:10px;font-weight:600;">📥 CSVの取得方法</p>
+        <p style="font-size:0.82rem;color:#1e40af;margin-bottom:12px;line-height:1.8;">
+          下のボタンでSBI証券の「ポートフォリオ（保有証券）」ページが開きます（未ログインの場合はログイン後に表示）。画面の「CSVダウンロード」でファイルを保存し、その下のエリアにアップロードしてください。
+        </p>
+        <a href="https://site1.sbisec.co.jp/ETGate/?_ControlID=WPLETpfR001Control&_PageID=DefaultPID&_DataStoreID=DSWPLETpfR001Control&_ActionID=DefaultAID&getFlg=on" target="_blank" rel="noopener"
+           style="display:inline-flex;align-items:center;gap:8px;background:#0284c7;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:0.9rem;font-weight:600;">
+          🔗 保有証券ページを開く（別タブ）
+        </a>
+      </div>
       <div class="upload-area" id="upload-area" onclick="document.getElementById('csv-input').click()">
         <div class="upload-icon">📄</div>
         <p>SBI証券「保有証券CSV」をドロップまたはクリックして選択</p>
@@ -296,6 +338,24 @@
           </div></div>
         </div>
       </div>
+      <div id="price-chart-area" style="display:none; margin-top:20px;">
+        <div style="font-size:0.82rem;font-weight:600;color:#475569;margin-bottom:8px;">
+          株価推移（1年前比 % 変化）<span style="font-weight:400;color:#94a3b8;font-size:0.78rem;"> — グラフにマウスを当てると詳細</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+          <span style="font-size:0.78rem;color:#94a3b8;">期間：</span>
+          <div class="chart-range-btns">
+            <button class="chart-range-btn" onclick="setChartRange(1)"  id="range-1m">1ヶ月</button>
+            <button class="chart-range-btn" onclick="setChartRange(3)"  id="range-3m">3ヶ月</button>
+            <button class="chart-range-btn" onclick="setChartRange(6)"  id="range-6m">6ヶ月</button>
+            <button class="chart-range-btn active" onclick="setChartRange(12)" id="range-12m">1年</button>
+          </div>
+          <span style="font-size:0.78rem;color:#94a3b8;margin-left:8px;">銘柄：</span>
+          <button id="toggle-VT"  onclick="toggleTicker('VT')"  class="ticker-toggle-btn active-vt" >● VT</button>
+          <button id="toggle-VOO" onclick="toggleTicker('VOO')" class="ticker-toggle-btn active-voo">● VOO</button>
+        </div>
+        <canvas id="price-chart" style="width:100%;border-radius:8px;"></canvas>
+      </div>
     </div>
   </div>
 
@@ -314,23 +374,109 @@
   </div>
 
   <!-- Step 6: Settings -->
+  <!-- LINE通知設定 -->
+  <div class="card">
+    <div class="card-header">
+      <div class="step-badge" style="background:#06c755;">L</div>
+      <h2>LINE通知設定</h2>
+    </div>
+    <div class="card-body">
+      <p style="font-size:0.88rem;color:#1e293b;margin-bottom:14px;">
+        毎朝10時（平日）に下落率と投資推奨をLINEで受け取れます。一度設定するだけで自動通知されます。
+      </p>
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:16px;font-size:0.85rem;line-height:2.1;">
+        <strong>設定手順（約10分）</strong><br>
+        <span style="color:#166534;">
+          ① <a href="https://developers.line.biz/console/" target="_blank" style="color:#16a34a;font-weight:600;">LINE Developersコンソール</a> を開いてLINEアカウントでログイン<br>
+          ② 「プロバイダー作成」→ 任意の名前（例：個人）で作成<br>
+          ③ プロバイダー画面で「チャンネルを作成」→「Messaging API」を選択<br>
+          ④ チャンネル名などを入力して作成完了後、チャンネル設定を開く<br>
+          ⑤ 「Messaging API設定」タブ →「チャンネルアクセストークン（長期）」→「発行」してコピー<br>
+          ⑥ 「Basic settings」タブ →「あなたのユーザーID」（U で始まる文字列）をコピー<br>
+          ⑦ 同ページのQRコードをLINEアプリでスキャンしてBotを友だち追加<br>
+          ⑧ <a href="https://github.com/taiju1914-sketch/nisa-investment-tool/settings/secrets/actions/new" target="_blank" style="color:#16a34a;font-weight:600;">GitHubのシークレット設定</a> で以下を2件追加：<br>
+          &nbsp;&nbsp;&nbsp;・Name: <code style="background:#dcfce7;padding:2px 6px;border-radius:4px;">LINE_CHANNEL_TOKEN</code> → ⑤でコピーしたアクセストークン<br>
+          &nbsp;&nbsp;&nbsp;・Name: <code style="background:#dcfce7;padding:2px 6px;border-radius:4px;">LINE_USER_ID</code> → ⑥でコピーしたユーザーID
+        </span>
+      </div>
+      <p style="font-size:0.8rem;color:#64748b;margin-top:10px;">
+        設定後、ActionsタブでUpdate Price Dataを手動実行するとすぐにLINEが届きます。
+      </p>
+      <div style="margin-top:14px;padding:14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;">
+        <p style="font-size:0.85rem;font-weight:600;color:#0c4a6e;margin-bottom:8px;">🔄 LINE通知しきい値を自動同期</p>
+        <p style="font-size:0.82rem;color:#075985;margin-bottom:10px;">GitHubトークンを登録すると、ステップ6の設定変更が自動でLINE通知に反映されます。</p>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+          <input type="password" id="gh-pat-input" placeholder="GitHubトークンを貼り付け（ghp_...）"
+            style="flex:1;padding:7px 10px;border:1px solid #7dd3fc;border-radius:6px;font-size:0.82rem;outline:none;">
+          <button onclick="saveGhPat()" style="background:#0284c7;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:0.82rem;cursor:pointer;white-space:nowrap;">保存</button>
+          <button onclick="clearGhPat()" style="background:#e2e8f0;color:#475569;border:none;border-radius:6px;padding:7px 10px;font-size:0.82rem;cursor:pointer;">削除</button>
+        </div>
+        <div id="gh-sync-status" style="font-size:0.8rem;color:#075985;min-height:1.4em;"></div>
+        <button onclick="triggerLineNotify()" id="test-notify-btn"
+          style="margin-top:10px;width:100%;background:#06c755;color:#fff;border:none;border-radius:8px;padding:10px;font-size:0.9rem;font-weight:600;cursor:pointer;">
+          📩 今すぐLINE通知をテスト送信
+        </button>
+        <div id="test-notify-status" style="font-size:0.8rem;color:#075985;min-height:1.4em;margin-top:6px;"></div>
+        <details style="margin-top:10px;">
+          <summary style="font-size:0.78rem;color:#0369a1;cursor:pointer;">トークンの取得方法</summary>
+          <div style="font-size:0.78rem;color:#075985;line-height:1.9;margin-top:6px;">
+            ① <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" style="color:#0284c7;font-weight:600;">GitHub Fine-grained token発行ページ</a> を開く<br>
+            ② Token name：「NISA通知」など好きな名前を入力<br>
+            ③ Expiration（有効期限）：任意（長めに設定推奨）<br>
+            ④ Repository access：「Only select repositories」→「nisa-investment-tool」を選択<br>
+            ⑤ Permissions（権限）を以下の2つに変更：<br>
+            &nbsp;&nbsp;&nbsp;・<strong>Contents</strong>：Read and write（設定の自動同期に必要）<br>
+            &nbsp;&nbsp;&nbsp;・<strong>Actions</strong>：Read and write（テスト送信ボタンに必要）<br>
+            ⑥ 「Generate token」→ 表示されたトークン（github_pat_ から始まる文字列）をコピー<br>
+            ⑦ 上の入力欄に貼り付けて「保存」を押す
+          </div>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 6: Settings -->
   <div class="card">
     <div class="card-header">
       <div class="step-badge">6</div>
       <h2>設定（下落率しきい値・投資比率）</h2>
     </div>
     <div class="card-body">
-      <p style="font-size:0.85rem;color:#64748b;margin-bottom:14px;">
-        下落率に応じた買い付け余力に対する投資割合を設定します。変更すると推奨額が自動更新されます。
+      <p style="font-size:0.85rem;color:#64748b;margin-bottom:12px;">
+        投資スタイルを選ぶか、下の表で個別に調整してください。変更すると推奨額が自動更新されます。
       </p>
+      <div class="preset-btns">
+        <button class="preset-btn" id="preset-conservative" onclick="applyPreset('conservative')">🛡️ 手堅く</button>
+        <button class="preset-btn active" id="preset-balanced" onclick="applyPreset('balanced')">⚖️ 安定</button>
+        <button class="preset-btn" id="preset-aggressive" onclick="applyPreset('aggressive')">🚀 攻め</button>
+        <button class="preset-btn reset-btn" onclick="resetPreset()">↺ リセット</button>
+      </div>
+      <div class="preset-desc" id="preset-desc" style="font-size:0.82rem;color:#64748b;margin-bottom:14px;">
+        下落が小さいうちは控えめに、大きく下がったときに積極投資するバランス型です。
+      </div>
       <table class="settings-table">
         <thead><tr><th>下落率の範囲</th><th>投資割合（%）</th></tr></thead>
         <tbody>
-          <tr><td>5% 未満</td><td><input type="number" id="th-0"  value="0"  min="0" max="100" step="5" oninput="recalculate()" /> %</td></tr>
-          <tr><td>5% 以上 〜 10% 未満</td><td><input type="number" id="th-5"  value="10" min="0" max="100" step="5" oninput="recalculate()" /> %</td></tr>
-          <tr><td>10% 以上 〜 15% 未満</td><td><input type="number" id="th-10" value="20" min="0" max="100" step="5" oninput="recalculate()" /> %</td></tr>
-          <tr><td>15% 以上 〜 20% 未満</td><td><input type="number" id="th-15" value="35" min="0" max="100" step="5" oninput="recalculate()" /> %</td></tr>
-          <tr><td>20% 以上</td><td><input type="number" id="th-20" value="50" min="0" max="100" step="5" oninput="recalculate()" /> %</td></tr>
+          <tr>
+            <td><input type="number" id="br-0" value="5" min="1" max="50" step="1" oninput="onThresholdInput()" />% 未満</td>
+            <td><input type="number" id="th-0" value="0"  min="0" max="100" step="5" oninput="onThresholdInput()" /> %</td>
+          </tr>
+          <tr>
+            <td><span id="br-0-lbl">5</span>% 以上 〜 <input type="number" id="br-1" value="10" min="1" max="50" step="1" oninput="onThresholdInput()" />% 未満</td>
+            <td><input type="number" id="th-1" value="10" min="0" max="100" step="5" oninput="onThresholdInput()" /> %</td>
+          </tr>
+          <tr>
+            <td><span id="br-1-lbl">10</span>% 以上 〜 <input type="number" id="br-2" value="15" min="1" max="50" step="1" oninput="onThresholdInput()" />% 未満</td>
+            <td><input type="number" id="th-2" value="20" min="0" max="100" step="5" oninput="onThresholdInput()" /> %</td>
+          </tr>
+          <tr>
+            <td><span id="br-2-lbl">15</span>% 以上 〜 <input type="number" id="br-3" value="20" min="1" max="50" step="1" oninput="onThresholdInput()" />% 未満</td>
+            <td><input type="number" id="th-3" value="35" min="0" max="100" step="5" oninput="onThresholdInput()" /> %</td>
+          </tr>
+          <tr>
+            <td><span id="br-3-lbl">20</span>% 以上</td>
+            <td><input type="number" id="th-4" value="50" min="0" max="100" step="5" oninput="onThresholdInput()" /> %</td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -371,11 +517,28 @@ csvInput.addEventListener('change', () => { if (csvInput.files[0]) processCSV(cs
 function processCSV(file) {
   const reader = new FileReader();
   reader.onload = e => {
-    try { parseCSV(e.target.result, file.name); }
+    try {
+      const buffer = e.target.result;
+      const bytes = new Uint8Array(buffer);
+      // CP932（Windows-31J）はSBI証券CSVの実際の文字コード
+      // 'windows-1252'はCP932のフォールバックとしてChromeで動作しないため
+      // 順番に試してeuc-jpも含めて確実にデコードする
+      const encodings = ['windows-31j', 'shift-jis', 'euc-jp', 'utf-8'];
+      let text = '';
+      for (const enc of encodings) {
+        try {
+          const decoded = new TextDecoder(enc, {fatal: true}).decode(bytes);
+          text = decoded;
+          break;
+        } catch(e) { continue; }
+      }
+      if (!text) text = new TextDecoder('utf-8', {fatal: false}).decode(bytes);
+      parseCSV(text, file.name);
+    }
     catch(err) { showUploadStatus('error', 'CSVの解析に失敗しました: ' + err.message); }
   };
   reader.onerror = () => showUploadStatus('error', 'ファイルの読み込みに失敗しました。');
-  reader.readAsText(file, 'Shift-JIS');
+  reader.readAsArrayBuffer(file);
 }
 
 // CSV1行をフィールド配列に分割（クォート対応）
@@ -464,9 +627,24 @@ function parseCSV(text, filename) {
   }
 
   if (allSecurities.length > 0) {
-    renderSecuritiesTable(allSecurities);
+    // 同じ銘柄名をひとまとめ（評価額を合算）
+    const merged = [];
+    const nameMap = {};
+    allSecurities.forEach(sec => {
+      const key = sec.name.trim();
+      if (nameMap[key] !== undefined) {
+        merged[nameMap[key]].amount += sec.amount;
+      } else {
+        nameMap[key] = merged.length;
+        merged.push({ name: sec.name, amount: sec.amount });
+      }
+    });
+    renderSecuritiesTable(merged);
     document.getElementById('card-securities').classList.remove('hidden');
-    showUploadStatus('success', `「${filename}」を読み込みました。${allSecurities.length}件の銘柄が見つかりました。参照ETFを設定して「計算する」を押してください。`);
+    const uniqueCount = merged.length;
+    const totalCount = allSecurities.length;
+    const mergeNote = totalCount > uniqueCount ? `（${totalCount}件を${uniqueCount}銘柄に統合）` : '';
+    showUploadStatus('success', `「${filename}」を読み込みました。${uniqueCount}件の銘柄が見つかりました${mergeNote}。参照ETFを設定して「計算する」を押してください。`);
   } else {
     showUploadStatus('error', `「${filename}」を読み込みましたが、銘柄データが見つかりませんでした。手動で入力してください。`);
   }
@@ -544,7 +722,7 @@ function applySecurities() {
     const sel = document.getElementById(`sel-${idx}`);
     if (!sel || sel.value === 'none') return;
     const name   = sel.dataset.name;
-    const amount = parseInt(sel.dataset.amount, 10) || 0;
+    const amount = parseNum(sel.dataset.amount) || 0;
     let ticker = sel.value;
     if (ticker === 'custom') {
       ticker = (document.getElementById(`custom-${idx}`).value.trim().toUpperCase()) || null;
@@ -556,10 +734,14 @@ function applySecurities() {
 
   state.securities = securities;
 
+  // localStorageに保存
+  saveStateToLocal();
+
   // ticker cards を再構築
   rebuildTickerCards([...tickers]);
 
   recalculate();
+  syncNotifyConfigToGitHub();
 
   // スクロール
   document.getElementById('card-cash').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -626,6 +808,267 @@ function updateDropBadge(ticker, pct) {
   badge.textContent = `${arrow} 高値比 ${pct.toFixed(2)}% 下落`;
 }
 
+let priceHistory = {};
+
+const CHART_COLORS = { VT: '#1a56db', VOO: '#f97316' };
+
+// % 変化に正規化（最初の値を 0% 基準）
+function normalizeHistory(history) {
+  const base = history[0].close;
+  return history.map(p => ({ date: p.date, pct: (p.close - base) / base * 100, close: p.close }));
+}
+
+function drawChart(canvas, datasets) {
+  const DPR = window.devicePixelRatio || 1;
+  const W   = canvas.parentElement.clientWidth;
+  const H   = Math.round(W * 0.45);
+  canvas.width  = W * DPR;
+  canvas.height = H * DPR;
+  canvas.style.height = H + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(DPR, DPR);
+  ctx.clearRect(0, 0, W, H);
+
+  const PAD = { top: 28, right: 20, bottom: 54, left: 56 };
+  const CW = W - PAD.left - PAD.right;
+  const CH = H - PAD.top  - PAD.bottom;
+
+  // 全正規化データ
+  const norm = datasets.map(([t, h]) => [t, normalizeHistory(h)]);
+  const allDates = [...new Set(norm.flatMap(([, n]) => n.map(p => p.date)))].sort();
+  const allPcts  = norm.flatMap(([, n]) => n.map(p => p.pct));
+  const rawMin = Math.min(...allPcts);
+  const rawMax = Math.max(...allPcts);
+  const pad = (rawMax - rawMin) * 0.12 || 2;
+  const minP = rawMin - pad;
+  const maxP = rawMax + pad;
+
+  const xOf = date => PAD.left + (allDates.indexOf(date) / Math.max(allDates.length - 1, 1)) * CW;
+  const yOf = pct  => PAD.top  + CH - ((pct - minP) / (maxP - minP)) * CH;
+  const zero = yOf(0);
+
+  // 背景
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, W, H);
+
+  // グリッドと Y 軸ラベル
+  ctx.font = `11px system-ui, sans-serif`;
+  ctx.fillStyle = '#94a3b8';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  const steps = [-20, -15, -10, -5, 0, 5, 10, 15, 20].filter(v => v >= minP - 1 && v <= maxP + 1);
+  steps.forEach(v => {
+    const y = yOf(v);
+    ctx.strokeStyle = v === 0 ? '#94a3b8' : '#e2e8f0';
+    ctx.lineWidth   = v === 0 ? 1.5 : 1;
+    ctx.setLineDash(v === 0 ? [] : [4, 3]);
+    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + CW, y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = v === 0 ? '#475569' : '#94a3b8';
+    ctx.fillText((v >= 0 ? '+' : '') + v + '%', PAD.left - 6, y);
+  });
+
+  // X 軸（月ラベル — 最小間隔 50px で間引き）
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.font = '11px system-ui, sans-serif';
+  const MIN_X_GAP = 52;
+  let lastLabelX = -MIN_X_GAP;
+  let lastMonth = '';
+  let lastYear = '';
+  allDates.forEach(d => {
+    const mon = d.slice(0, 7);
+    const yr  = d.slice(0, 4);
+    if (mon === lastMonth) return;
+    const x = xOf(d);
+    if (x - lastLabelX < MIN_X_GAP) return;
+    lastMonth = mon;
+    lastLabelX = x;
+    // 縦グリッド補助線
+    ctx.strokeStyle = '#f1f5f9';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, PAD.top + CH); ctx.stroke();
+    ctx.setLineDash([]);
+    // 月ラベル（1行目）
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.fillText(`${d.slice(5, 7)}月`, x, PAD.top + CH + 6);
+    // 年変わりは2行目に年を表示
+    if (yr !== lastYear) {
+      lastYear = yr;
+      ctx.fillStyle = '#475569';
+      ctx.font = 'bold 11px system-ui, sans-serif';
+      ctx.fillText(yr + '年', x, PAD.top + CH + 22);
+      ctx.font = '11px system-ui, sans-serif';
+    }
+  });
+
+  // 各ティッカーのグラデーション塗りつぶし＋ライン
+  norm.forEach(([ticker, data]) => {
+    const color = CHART_COLORS[ticker] || '#64748b';
+    const pts = data.map(p => ({ x: xOf(p.date), y: yOf(p.pct) }));
+    if (pts.length < 2) return;
+
+    // グラデーション塗りつぶし
+    const grad = ctx.createLinearGradient(0, PAD.top, 0, PAD.top + CH);
+    grad.addColorStop(0,   color + '30');
+    grad.addColorStop(0.7, color + '08');
+    grad.addColorStop(1,   color + '00');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, zero);
+    pts.forEach(p => ctx.lineTo(p.x, p.y));
+    ctx.lineTo(pts[pts.length - 1].x, zero);
+    ctx.closePath();
+    ctx.fill();
+
+    // ライン
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5;
+    ctx.lineJoin = 'round';
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+    ctx.stroke();
+
+    // 最新値ドット＋ラベル
+    const last = pts[pts.length - 1];
+    const lastPct = data[data.length - 1].pct;
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(last.x, last.y, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(last.x, last.y, 2.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = color;
+    ctx.font = 'bold 12px system-ui, sans-serif';
+    ctx.textAlign = last.y > PAD.top + 20 ? 'right' : 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(`${ticker} ${lastPct >= 0 ? '+' : ''}${lastPct.toFixed(1)}%`, last.x - 10, last.y - 6);
+  });
+
+  return { xOf, yOf, allDates, norm, PAD, CW, CH };
+}
+
+let chartRangeMonths = 12;
+const tickerVisible = { VT: true, VOO: true };
+
+function setChartRange(months) {
+  chartRangeMonths = months;
+  const ids = { 1: 'range-1m', 3: 'range-3m', 6: 'range-6m', 12: 'range-12m' };
+  document.querySelectorAll('.chart-range-btn:not(.ticker-toggle)').forEach(b => b.classList.remove('active'));
+  const el = document.getElementById(ids[months]);
+  if (el) el.classList.add('active');
+  renderPriceChart();
+}
+
+function toggleTicker(ticker) {
+  tickerVisible[ticker] = !tickerVisible[ticker];
+  const btn = document.getElementById(`toggle-${ticker}`);
+  if (btn) {
+    const on = tickerVisible[ticker];
+    btn.className = on
+      ? `ticker-toggle-btn active-${ticker.toLowerCase()}`
+      : 'ticker-toggle-btn off';
+  }
+  renderPriceChart();
+}
+
+function filterByRange(history, months) {
+  if (!history || history.length === 0) return history;
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - months);
+  const cutStr = cutoff.toISOString().slice(0, 10);
+  const filtered = history.filter(p => p.date >= cutStr);
+  return filtered.length > 1 ? filtered : history.slice(-Math.min(history.length, 20));
+}
+
+function renderPriceChart() {
+  const area = document.getElementById('price-chart-area');
+  const canvas = document.getElementById('price-chart');
+  const raw = Object.entries(priceHistory).filter(([t, h]) => h && h.length > 0 && tickerVisible[t] !== false);
+  if (raw.length === 0) { area.style.display = 'block'; return; }
+  area.style.display = 'block';
+
+  const datasets = raw.map(([ticker, history]) => [ticker, filterByRange(history, chartRangeMonths)]);
+  const chartState = drawChart(canvas, datasets);
+
+  // ホバーツールチップ
+  canvas.onmousemove = function(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+
+    const { xOf, allDates, norm, PAD, CW, CH } = chartState;
+    if (mx < PAD.left || mx > PAD.left + CW) { clearTooltip(); return; }
+
+    const idx = Math.round((mx - PAD.left) / CW * (allDates.length - 1));
+    const date = allDates[Math.max(0, Math.min(idx, allDates.length - 1))];
+
+    // 再描画 + クロスヘア
+    drawChart(canvas, datasets);
+    const ctx = canvas.getContext('2d');
+    const DPR = window.devicePixelRatio || 1;
+    ctx.scale(DPR, DPR);
+    const x = xOf(date);
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, PAD.top + CH); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // ツールチップ内容
+    const lines = norm.map(([ticker, data]) => {
+      const p = data.find(d => d.date === date);
+      if (!p) return null;
+      const sign = p.pct >= 0 ? '+' : '';
+      return `<span style="color:${CHART_COLORS[ticker]}">●</span> <strong>${ticker}</strong>: $${p.close.toFixed(2)} (${sign}${p.pct.toFixed(2)}%)`;
+    }).filter(Boolean);
+
+    showTooltip(e.clientX, e.clientY, `<div style="font-size:0.78rem;font-weight:600;color:#475569;margin-bottom:4px">${date}</div>` + lines.join('<br>'));
+  };
+  canvas.onmouseleave = clearTooltip;
+
+  // 凡例
+  let legend = document.getElementById('price-chart-legend');
+  if (!legend) {
+    legend = document.createElement('div');
+    legend.id = 'price-chart-legend';
+    legend.className = 'chart-legend';
+    area.appendChild(legend);
+  }
+  legend.innerHTML = datasets.map(([ticker, history]) => {
+    const first = history[0], last = history[history.length - 1];
+    const chg = ((last.close - first.close) / first.close * 100).toFixed(1);
+    const sign = chg >= 0 ? '+' : '';
+    const col = chg >= 0 ? '#16a34a' : '#dc2626';
+    return `<div class="chart-legend-item">
+      <div class="chart-legend-dot" style="background:${CHART_COLORS[ticker] || '#64748b'}"></div>
+      <strong>${ticker}</strong>&nbsp;$${last.close}
+      <span style="color:${col}">(${sign}${chg}% / 1年)</span>
+    </div>`;
+  }).join('');
+}
+
+// ツールチップ
+function showTooltip(cx, cy, html) {
+  let tip = document.getElementById('chart-tooltip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'chart-tooltip';
+    tip.style.cssText = 'position:fixed;pointer-events:none;background:#1e293b;color:#f1f5f9;padding:8px 12px;border-radius:8px;font-size:0.82rem;line-height:1.6;box-shadow:0 4px 16px rgba(0,0,0,0.2);z-index:9999;white-space:nowrap;';
+    document.body.appendChild(tip);
+  }
+  tip.innerHTML = html;
+  tip.style.display = 'block';
+  const tw = tip.offsetWidth, th2 = tip.offsetHeight;
+  tip.style.left = Math.min(cx + 14, window.innerWidth - tw - 8) + 'px';
+  tip.style.top  = Math.max(cy - th2 - 8, 8) + 'px';
+}
+function clearTooltip() {
+  const tip = document.getElementById('chart-tooltip');
+  if (tip) tip.style.display = 'none';
+}
+
 function renderTickerData(ticker, info) {
   const container = document.getElementById(`data-${ticker}`);
   if (!container) return;
@@ -677,6 +1120,8 @@ async function fetchMarketData() {
     if (info) {
       state.tickerDrops[ticker] = info.dropPctJpy != null ? info.dropPctJpy : info.dropPct;
       state.tickerDropsJpy[ticker] = info.dropPctJpy ?? null;
+      if (info.historyJpy) priceHistory[ticker] = info.historyJpy;
+      else if (info.history) priceHistory[ticker] = info.history;
       renderTickerData(ticker, info);
       successCount++;
     } else {
@@ -703,28 +1148,229 @@ async function fetchMarketData() {
   }
 
   recalculate();
+  renderPriceChart();
+}
+
+// =====================================================================
+// Preset profiles
+// =====================================================================
+// breakpoints: [b0,b1,b2,b3] → 5段階の境界値
+// pcts: [p0,p1,p2,p3,p4] → 各段階の投資割合(%)
+const PRESETS = {
+  conservative: {
+    label: '手堅く',
+    desc: '下落が大きいときだけ少額投資。リスクを最小限に抑える保守型です。',
+    breakpoints: [8, 15, 20, 25],
+    pcts: [0, 5, 10, 20, 30],
+  },
+  balanced: {
+    label: '安定',
+    desc: '下落が小さいうちは控えめに、大きく下がったときに積極投資するバランス型です。',
+    breakpoints: [5, 10, 15, 20],
+    pcts: [0, 10, 20, 35, 50],
+  },
+  aggressive: {
+    label: '攻め',
+    desc: '少しの下落でも積極的に買い増す積極型。値動きに強い方向けです。',
+    breakpoints: [3, 7, 12, 18],
+    pcts: [5, 20, 40, 60, 80],
+  },
+};
+
+let currentPreset = 'balanced';
+let lastAppliedPreset = 'balanced';
+
+function applyPreset(name) {
+  const preset = PRESETS[name];
+  if (!preset) return;
+  currentPreset = name;
+  lastAppliedPreset = name;
+  preset.breakpoints.forEach((v, i) => { document.getElementById(`br-${i}`).value = v; });
+  preset.pcts.forEach((v, i) => { document.getElementById(`th-${i}`).value = v; });
+  updateBreakpointLabels();
+  document.getElementById('preset-desc').textContent = preset.desc;
+  document.querySelectorAll('.preset-btn:not(.reset-btn)').forEach(btn => btn.classList.remove('active'));
+  document.getElementById(`preset-${name}`).classList.add('active');
+  recalculate();
+  updateNotifyConfigPreview();
+}
+
+function resetPreset() {
+  applyPreset(lastAppliedPreset);
+}
+
+function updateBreakpointLabels() {
+  [0,1,2,3].forEach(i => {
+    const val = document.getElementById(`br-${i}`).value;
+    const lbl = document.getElementById(`br-${i}-lbl`);
+    if (lbl) lbl.textContent = val;
+  });
+}
+
+function onThresholdInput() {
+  updateBreakpointLabels();
+  currentPreset = 'custom';
+  document.querySelectorAll('.preset-btn:not(.reset-btn)').forEach(btn => btn.classList.remove('active'));
+  document.getElementById('preset-desc').textContent = 'カスタム設定中です。↺ リセットで元に戻せます。';
+  recalculate();
+  updateNotifyConfigPreview();
+}
+
+function updateNotifyConfigPreview() {
+  syncNotifyConfigToGitHub();
+}
+
+function saveGhPat() {
+  const val = document.getElementById('gh-pat-input').value.trim();
+  if (!val) return;
+  // ISO-8859-1範囲外の文字（全角・日本語など）が含まれていないかチェック
+  // eslint-disable-next-line no-control-regex
+  if (/[^\x00-\xFF]/.test(val)) {
+    setGhSyncStatus('err', 'エラー：トークンに全角文字や日本語が含まれています。英数字と記号のみのトークンを貼り付けてください。');
+    return;
+  }
+  localStorage.setItem('gh_pat', val);
+  document.getElementById('gh-pat-input').value = '';
+  document.getElementById('gh-pat-input').placeholder = '登録済み（変更する場合は新しいトークンを貼り付け）';
+  setGhSyncStatus('info', 'トークンを保存しました。設定を変更すると自動同期されます。');
+}
+
+function clearGhPat() {
+  localStorage.removeItem('gh_pat');
+  document.getElementById('gh-pat-input').value = '';
+  setGhSyncStatus('', '');
+}
+
+async function triggerLineNotify() {
+  const token = localStorage.getItem('gh_pat');
+  const btn = document.getElementById('test-notify-btn');
+  const statusEl = document.getElementById('test-notify-status');
+  if (!token) {
+    statusEl.style.color = '#991b1b';
+    statusEl.textContent = 'GitHubトークンが未登録です。先にトークンを保存してください。';
+    return;
+  }
+  if (!isValidPat(token)) {
+    localStorage.removeItem('gh_pat');
+    document.getElementById('gh-pat-input').value = '';
+    statusEl.style.color = '#991b1b';
+    statusEl.textContent = 'トークンに無効な文字が含まれていたため削除しました。再登録してください。';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = '送信中...';
+  statusEl.style.color = '#075985';
+  statusEl.textContent = 'GitHub Actionsを起動しています...';
+  try {
+    const res = await fetch(
+      'https://api.github.com/repos/taiju1914-sketch/nisa-investment-tool/actions/workflows/update-prices.yml/dispatches',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/vnd.github+json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ref: 'main' }),
+      }
+    );
+    if (res.status === 204) {
+      statusEl.style.color = '#166534';
+      statusEl.textContent = '✓ ワークフローを起動しました。1〜2分後にLINEに届きます。';
+    } else {
+      const err = await res.json().catch(() => ({}));
+      statusEl.style.color = '#991b1b';
+      statusEl.textContent = `失敗 (${res.status}): ${err.message || 'トークンにActions権限が必要です'}`;
+    }
+  } catch(e) {
+    statusEl.style.color = '#991b1b';
+    statusEl.textContent = 'エラー: ' + e.message;
+  }
+  btn.disabled = false;
+  btn.textContent = '📩 今すぐLINE通知をテスト送信';
+}
+
+function setGhSyncStatus(type, msg) {
+  const el = document.getElementById('gh-sync-status');
+  if (!el) return;
+  const colors = { info: '#075985', ok: '#166534', err: '#991b1b', '': '#475569' };
+  el.style.color = colors[type] || '#475569';
+  el.textContent = msg;
+}
+
+function isValidPat(token) {
+  // eslint-disable-next-line no-control-regex
+  return token && /^[\x00-\xFF]+$/.test(token);
+}
+
+let syncTimer = null;
+function syncNotifyConfigToGitHub() {
+  const token = localStorage.getItem('gh_pat');
+  if (!token) return;
+  if (!isValidPat(token)) {
+    localStorage.removeItem('gh_pat');
+    document.getElementById('gh-pat-input').value = '';
+    setGhSyncStatus('err', '保存済みトークンに無効な文字が含まれていたため削除しました。トークンを再登録してください。');
+    return;
+  }
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(async () => {
+    const th = getThresholds();
+    const cash = parseFloat(document.getElementById('input-cash').value) || 0;
+    // 評価額をティッカーごとに集計（按分計算用）
+    const tickerAmounts = {};
+    state.securities.forEach(sec => {
+      if (!sec.ticker) return;
+      tickerAmounts[sec.ticker] = (tickerAmounts[sec.ticker] || 0) + sec.amount;
+    });
+    const content = JSON.stringify({breakpoints: th.br, pcts: th.pct, cash: cash, tickerAmounts: tickerAmounts}, null, 2);
+    const encoded = btoa(unescape(encodeURIComponent(content)));
+    const apiBase = 'https://api.github.com/repos/taiju1914-sketch/nisa-investment-tool/contents/notify-config.json';
+    const headers = { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' };
+    try {
+      setGhSyncStatus('info', '同期中...');
+      const wait = ms => new Promise(r => setTimeout(r, ms));
+      for (let attempt = 0; attempt < 5; attempt++) {
+        if (attempt > 0) await wait(attempt * 1000);
+        // 最新SHAを取得
+        const res = await fetch(apiBase, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' } });
+        const current = res.ok ? await res.json() : null;
+        const body = JSON.stringify({ message: 'Update notify-config from web UI', content: encoded, ...(current ? { sha: current.sha } : {}) });
+        const put = await fetch(apiBase, { method: 'PUT', headers, body });
+        if (put.ok) {
+          setGhSyncStatus('ok', '✓ GitHubに同期しました（' + new Date().toLocaleTimeString('ja-JP') + '）');
+          return;
+        }
+        const err = await put.json().catch(() => ({}));
+        if (put.status !== 409 && put.status !== 422) {
+          setGhSyncStatus('err', '同期失敗: ' + (err.message || put.status));
+          return;
+        }
+      }
+      setGhSyncStatus('err', '同期失敗: 時間をおいて設定を再変更してください');
+    } catch(e) {
+      setGhSyncStatus('err', '同期エラー: ' + e.message);
+    }
+  }, 800);
 }
 
 // =====================================================================
 // Thresholds & Calculation
 // =====================================================================
 function getThresholds() {
-  return {
-    0:  parseFloat(document.getElementById('th-0').value)  || 0,
-    5:  parseFloat(document.getElementById('th-5').value)  || 0,
-    10: parseFloat(document.getElementById('th-10').value) || 0,
-    15: parseFloat(document.getElementById('th-15').value) || 0,
-    20: parseFloat(document.getElementById('th-20').value) || 0,
-  };
+  const br = [0,1,2,3].map(i => parseFloat(document.getElementById(`br-${i}`).value) || 0);
+  const pct = [0,1,2,3,4].map(i => parseFloat(document.getElementById(`th-${i}`).value) || 0);
+  return { br, pct };
 }
 
 function getPct(drop, th) {
   if (drop === null || isNaN(drop)) return 0;
-  if (drop < 5)  return th[0]  / 100;
-  if (drop < 10) return th[5]  / 100;
-  if (drop < 15) return th[10] / 100;
-  if (drop < 20) return th[15] / 100;
-  return th[20] / 100;
+  const { br, pct } = th;
+  if (drop < br[0]) return pct[0] / 100;
+  if (drop < br[1]) return pct[1] / 100;
+  if (drop < br[2]) return pct[2] / 100;
+  if (drop < br[3]) return pct[3] / 100;
+  return pct[4] / 100;
 }
 
 function recalculate() {
@@ -820,7 +1466,7 @@ function recalculate() {
   // 説明文
   let explanation = '';
   if (maxPct === 0) {
-    explanation = `すべてのETFで下落率が条件（${th[5]}%以上）を満たしていないため、今回は購入推奨なしです。`;
+    explanation = `すべてのETFで下落率が条件（${th.br[0]}%以上）を満たしていないため、今回は購入推奨なしです。`;
   } else if (triggeredGroups.length === 1) {
     const t = triggeredGroups[0];
     explanation = `${t}が52週高値から${groups[t].drop !== null ? groups[t].drop.toFixed(2) : '—'}%下落しています。買い付け余力の${(groups[t].pct*100).toFixed(0)}%（${fmt(totalInvest)}円）を投資することを推奨します。`;
@@ -831,6 +1477,13 @@ function recalculate() {
 
   html += `<div class="rec-explanation">${explanation}</div>`;
   recArea.innerHTML = html;
+
+  renderPriceChart();
+
+  // 銘柄・余力が揃っていれば設定を自動同期
+  if (state.securities.length > 0 && cash > 0) {
+    syncNotifyConfigToGitHub();
+  }
 }
 
 // =====================================================================
@@ -846,11 +1499,87 @@ function showUploadStatus(type, msg) {
 
 document.getElementById('input-cash').addEventListener('input', function() {
   this.classList.remove('auto-filled');
+  saveStateToLocal();
   recalculate();
+  syncNotifyConfigToGitHub();
 });
+
+// =====================================================================
+// 状態の保存・復元（localStorageで銘柄・現金を永続化）
+// =====================================================================
+function saveStateToLocal() {
+  const cash = parseFloat(document.getElementById('input-cash').value) || 0;
+  // ETF割り当てをテーブルから読み取って保存
+  const rows = document.querySelectorAll('#sec-tbody tr');
+  const saved = [];
+  rows.forEach((tr, idx) => {
+    const sel = document.getElementById(`sel-${idx}`);
+    if (!sel) return;
+    let ticker = sel.value;
+    if (ticker === 'custom') ticker = document.getElementById(`custom-${idx}`)?.value.trim().toUpperCase() || 'custom';
+    saved.push({ name: sel.dataset.name, amount: parseNum(sel.dataset.amount) || 0, ticker });
+  });
+  localStorage.setItem('nisa_securities', JSON.stringify(saved));
+  localStorage.setItem('nisa_cash', String(cash));
+}
+
+function restoreStateFromLocal() {
+  const savedSec = localStorage.getItem('nisa_securities');
+  const savedCash = localStorage.getItem('nisa_cash');
+  if (!savedSec) return;
+  try {
+    const securities = JSON.parse(savedSec);
+    if (!securities.length) return;
+    // テーブルを再描画
+    renderSecuritiesTable(securities);
+    // ETF割り当てを復元
+    securities.forEach((sec, idx) => {
+      const sel = document.getElementById(`sel-${idx}`);
+      if (!sel) return;
+      const validValues = ETF_OPTIONS.map(o => o.value);
+      if (validValues.includes(sec.ticker)) {
+        sel.value = sec.ticker;
+      } else {
+        sel.value = 'custom';
+        const customEl = document.getElementById(`custom-${idx}`);
+        if (customEl) { customEl.value = sec.ticker; customEl.classList.remove('hidden'); }
+      }
+      onSelectChange(idx);
+    });
+    document.getElementById('card-securities').classList.remove('hidden');
+    // 現金を復元
+    if (savedCash) {
+      const el = document.getElementById('input-cash');
+      el.value = savedCash;
+      el.classList.add('auto-filled');
+    }
+    // 銘柄を確定して計算
+    applySecurities();
+    showUploadStatus('success', '前回の銘柄設定を復元しました。CSVを再アップロードすると更新できます。');
+  } catch(e) { /* 復元失敗は無視 */ }
+}
 
 // 初期状態でVT/VOOカードを表示
 state.tickerDrops = { VT: null, VOO: null };
+restoreStateFromLocal();
+
+// ページを開いたら自動でマーケットデータを取得・更新
+(async () => {
+  await fetchMarketData();
+  // 買い付け余力が入力済みなら自動計算
+  const cash = parseFloat(document.getElementById('input-cash').value) || 0;
+  if (cash > 0) recalculate();
+})();
+
+// GitHubトークンが保存済みなら入力欄にマスク表示
+if (localStorage.getItem('gh_pat')) {
+  const inp = document.getElementById('gh-pat-input');
+  if (inp) {
+    inp.value = '';
+    inp.placeholder = '登録済み（変更する場合は新しいトークンを貼り付け）';
+  }
+  setGhSyncStatus('info', 'トークン登録済み。設定変更で自動同期されます。');
+}
 </script>
 </body>
 </html>
