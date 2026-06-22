@@ -1220,7 +1220,8 @@ function saveGhPat() {
     return;
   }
   localStorage.setItem('gh_pat', val);
-  document.getElementById('gh-pat-input').value = '●'.repeat(12);
+  document.getElementById('gh-pat-input').value = '';
+  document.getElementById('gh-pat-input').placeholder = '登録済み（変更する場合は新しいトークンを貼り付け）';
   setGhSyncStatus('info', 'トークンを保存しました。設定を変更すると自動同期されます。');
 }
 
@@ -1488,7 +1489,10 @@ state.tickerDrops = { VT: null, VOO: null };
 // GitHubトークンが保存済みなら入力欄にマスク表示
 if (localStorage.getItem('gh_pat')) {
   const inp = document.getElementById('gh-pat-input');
-  if (inp) inp.value = '●'.repeat(12);
+  if (inp) {
+    inp.value = '';
+    inp.placeholder = '登録済み（変更する場合は新しいトークンを貼り付け）';
+  }
   setGhSyncStatus('info', 'トークン登録済み。設定変更で自動同期されます。');
 }
 </script>
