@@ -1009,9 +1009,9 @@
         "close": 157.66
       }
     ],
-    "currentJpy": 25502.0,
+    "currentJpy": 25500.0,
     "high52Jpy": 25491.0,
-    "dropPctJpy": -0.0412,
+    "dropPctJpy": -0.035,
     "historyJpy": [
       {
         "date": "2025-06-23",
@@ -2917,9 +2917,9 @@
         "close": 688.11
       }
     ],
-    "currentJpy": 111302.0,
+    "currentJpy": 111295.0,
     "high52Jpy": 111701.0,
-    "dropPctJpy": 0.3574,
+    "dropPctJpy": 0.3635,
     "historyJpy": [
       {
         "date": "2025-06-23",
@@ -3816,7 +3816,7 @@
     ]
   },
   "USDJPY": {
-    "current": 161.75
+    "current": 161.74
   },
-  "updatedAt": "2026-06-22T12:55:39Z"
+  "updatedAt": "2026-06-22T13:03:49Z"
 }
