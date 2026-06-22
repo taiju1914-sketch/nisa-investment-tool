@@ -2,7 +2,7 @@ name: Update Price Data
 
 on:
   schedule:
-    - cron: '0 1 * * 1-5'  # 月〜金 UTC 01:00（日本時間10:00）
+    - cron: '15 1 * * 1-5'  # 月〜金 UTC 01:15（日本時間10:15）
   workflow_dispatch:
 
 permissions:
