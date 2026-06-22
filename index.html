@@ -1213,6 +1213,12 @@ function updateNotifyConfigPreview() {
 function saveGhPat() {
   const val = document.getElementById('gh-pat-input').value.trim();
   if (!val) return;
+  // ISO-8859-1範囲外の文字（全角・日本語など）が含まれていないかチェック
+  // eslint-disable-next-line no-control-regex
+  if (/[^\x00-\xFF]/.test(val)) {
+    setGhSyncStatus('err', 'エラー：トークンに全角文字や日本語が含まれています。英数字と記号のみのトークンを貼り付けてください。');
+    return;
+  }
   localStorage.setItem('gh_pat', val);
   document.getElementById('gh-pat-input').value = '●'.repeat(12);
   setGhSyncStatus('info', 'トークンを保存しました。設定を変更すると自動同期されます。');
@@ -1231,6 +1237,13 @@ async function triggerLineNotify() {
   if (!token) {
     statusEl.style.color = '#991b1b';
     statusEl.textContent = 'GitHubトークンが未登録です。先にトークンを保存してください。';
+    return;
+  }
+  if (!isValidPat(token)) {
+    localStorage.removeItem('gh_pat');
+    document.getElementById('gh-pat-input').value = '';
+    statusEl.style.color = '#991b1b';
+    statusEl.textContent = 'トークンに無効な文字が含まれていたため削除しました。再登録してください。';
     return;
   }
   btn.disabled = true;
@@ -1274,10 +1287,21 @@ function setGhSyncStatus(type, msg) {
   el.textContent = msg;
 }
 
+function isValidPat(token) {
+  // eslint-disable-next-line no-control-regex
+  return token && /^[\x00-\xFF]+$/.test(token);
+}
+
 let syncTimer = null;
 function syncNotifyConfigToGitHub() {
   const token = localStorage.getItem('gh_pat');
   if (!token) return;
+  if (!isValidPat(token)) {
+    localStorage.removeItem('gh_pat');
+    document.getElementById('gh-pat-input').value = '';
+    setGhSyncStatus('err', '保存済みトークンに無効な文字が含まれていたため削除しました。トークンを再登録してください。');
+    return;
+  }
   clearTimeout(syncTimer);
   syncTimer = setTimeout(async () => {
     const th = getThresholds();
