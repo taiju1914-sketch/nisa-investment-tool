@@ -88,15 +88,50 @@ jobs:
               if drop < br[3]: return "積極投資タイミング 🔔"
               return "最大投資タイミング 🚨"
 
+          # USDJPY=X の日次履歴を取得して {date: rate} マップを構築
+          fx_map = {}
+          fx_current = None
+          for fn in [fetch_yahoo, fetch_yahoo2]:
+              try:
+                  fx = fn("USDJPY=X")
+                  fx_current = fx["current"]
+                  for h in fx["history"]:
+                      fx_map[h["date"]] = h["close"]
+                  print(f"USDJPY=X: {fx_current:.2f}")
+                  break
+              except Exception as e:
+                  print(f"ERROR USDJPY=X: {e}", file=sys.stderr)
+
           result = {}
           for sym in ["VT", "VOO"]:
               for fn in [fetch_yahoo, fetch_yahoo2]:
                   try:
-                      result[sym] = fn(sym)
-                      print(f"{sym}: {result[sym]['current']} (下落率 {result[sym]['dropPct']:.2f}%)")
+                      data = fn(sym)
+                      # 円建て計算
+                      if fx_map and fx_current:
+                          history_jpy = []
+                          for h in data["history"]:
+                              rate = fx_map.get(h["date"])
+                              if rate:
+                                  history_jpy.append({"date": h["date"], "close": round(h["close"] * rate, 0)})
+                          if history_jpy:
+                              closes_jpy = [h["close"] for h in history_jpy]
+                              high52_jpy = max(closes_jpy)
+                              current_jpy = data["current"] * fx_current
+                              drop_jpy = (high52_jpy - current_jpy) / high52_jpy * 100
+                              data["currentJpy"] = round(current_jpy, 0)
+                              data["high52Jpy"] = round(high52_jpy, 0)
+                              data["dropPctJpy"] = round(drop_jpy, 4)
+                              data["historyJpy"] = history_jpy
+                      result[sym] = data
+                      jpy_str = f" / 円建て {data.get('dropPctJpy', 'N/A'):.2f}%" if "dropPctJpy" in data else ""
+                      print(f"{sym}: {data['current']} (USD下落率 {data['dropPct']:.2f}%{jpy_str})")
                       break
                   except Exception as e:
                       print(f"ERROR {sym}: {e}", file=sys.stderr)
+
+          if fx_current:
+              result["USDJPY"] = {"current": round(fx_current, 2)}
 
           result["updatedAt"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
           with open("prices.json", "w") as f:
@@ -118,7 +153,7 @@ jobs:
               for sym in ["VT", "VOO"]:
                   if sym not in result:
                       continue
-                  d = result[sym]["dropPct"]
+                  d = result[sym].get("dropPctJpy") if result[sym].get("dropPctJpy") is not None else result[sym]["dropPct"]
                   ip = get_invest_pct(d, cfg)
                   if ip > 0:
                       triggered[sym] = ip
@@ -129,14 +164,19 @@ jobs:
 
               lines = ["📊 NISA投資アドバイス（本日の状況）\n"]
               should_notify = bool(triggered)
+              fx_str = f"（1USD={result['USDJPY']['current']:.0f}円）" if "USDJPY" in result else ""
               for sym in ["VT", "VOO"]:
                   if sym not in result:
                       lines.append(f"  {sym}: 取得失敗")
                       continue
-                  d = result[sym]["dropPct"]
+                  d_jpy = result[sym].get("dropPctJpy")
+                  d = d_jpy if d_jpy is not None else result[sym]["dropPct"]
                   ip = get_invest_pct(d, cfg)
                   lbl = drop_label(d, cfg)
-                  lines.append(f"  {sym}: ${result[sym]['current']} (高値比 -{d:.2f}%)")
+                  if d_jpy is not None:
+                      lines.append(f"  {sym}: ${result[sym]['current']} ≈ ¥{result[sym].get('currentJpy', 0):,.0f} (円建て -{d:.2f}%){fx_str}")
+                  else:
+                      lines.append(f"  {sym}: ${result[sym]['current']} (高値比 -{d:.2f}%)")
                   if ip > 0 and cash > 0 and total_invest > 0:
                       # 評価額比率で按分
                       sym_amount = ticker_amounts.get(sym, 0)
