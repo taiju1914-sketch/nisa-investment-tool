@@ -345,6 +345,8 @@
 const state = {
   // {ticker: string → dropPct: number|null}
   tickerDrops: { VT: null, VOO: null },
+  // {ticker: string → dropPctJpy: number|null} — 円建て下落率
+  tickerDropsJpy: { VT: null, VOO: null },
   // [{name, amount, ticker}] — 適用済み銘柄リスト
   securities: [],
   cash: 0,
@@ -634,13 +636,16 @@ function renderTickerData(ticker, info) {
     </div>`;
     return;
   }
+  const hasJpy = info.dropPctJpy != null;
+  const effectiveDrop = hasJpy ? info.dropPctJpy : info.dropPct;
   container.innerHTML = `
     <div class="price-row"><span class="price-label">現在値</span><span class="price-value">$${info.current.toFixed(2)}</span></div>
     <div class="price-row"><span class="price-label">52週高値</span><span class="price-value">$${info.high52.toFixed(2)}</span></div>
-    <span class="drop-badge ${dropClass(info.dropPct)}">
-      ${info.dropPct >= 15 ? '▼▼' : info.dropPct >= 10 ? '▼' : info.dropPct >= 5 ? '↘' : '→'}
-      高値比 ${info.dropPct.toFixed(2)}% 下落
-    </span>`;
+    <span class="drop-badge ${dropClass(effectiveDrop)}">
+      ${effectiveDrop >= 15 ? '▼▼' : effectiveDrop >= 10 ? '▼' : effectiveDrop >= 5 ? '↘' : '→'}
+      高値比 ${effectiveDrop.toFixed(2)}% 下落${hasJpy ? '（円建て）' : ''}
+    </span>
+    ${hasJpy ? `<div class="price-row" style="font-size:0.75em;color:#888;margin-top:2px"><span class="price-label">ドル建て下落率</span><span class="price-value">${info.dropPct.toFixed(2)}%</span></div>` : ''}`;
 }
 
 async function fetchMarketData() {
@@ -670,7 +675,14 @@ async function fetchMarketData() {
   for (const ticker of tickers) {
     const info = pricesData && pricesData[ticker] ? pricesData[ticker] : null;
     if (info) {
+<<<<<<< Updated upstream
       state.tickerDrops[ticker] = info.dropPct;
+=======
+      state.tickerDrops[ticker] = info.dropPctJpy != null ? info.dropPctJpy : info.dropPct;
+      state.tickerDropsJpy[ticker] = info.dropPctJpy ?? null;
+      if (info.historyJpy) priceHistory[ticker] = info.historyJpy;
+      else if (info.history) priceHistory[ticker] = info.history;
+>>>>>>> Stashed changes
       renderTickerData(ticker, info);
       successCount++;
     } else {

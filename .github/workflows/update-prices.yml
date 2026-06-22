@@ -2,8 +2,8 @@ name: Update Price Data
 
 on:
   schedule:
-    - cron: '0 1 * * 1-5'  # 月〜金 UTC 01:00（日本時間10:00）
-  workflow_dispatch:        # 手動実行も可能
+    - cron: '15 1 * * 1-5'  # 月〜金 UTC 01:15（日本時間10:15）
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -14,37 +14,218 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fetch prices from Stooq
+      - name: Fetch prices and notify
+        env:
+          LINE_CHANNEL_TOKEN: ${{ secrets.LINE_CHANNEL_TOKEN }}
+          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
         run: |
           python3 << 'EOF'
-          import urllib.request, json, sys
-          from datetime import datetime
+          import urllib.request, urllib.parse, json, sys, os
+          from datetime import datetime, timezone
 
-          def fetch(symbol):
-              url = f"https://stooq.com/q/d/l/?s={symbol.lower()}.us&i=d"
-              req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+          def fetch_yahoo(symbol):
+              url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=1y&interval=1d"
+              req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"})
               with urllib.request.urlopen(req, timeout=30) as r:
-                  text = r.read().decode("utf-8")
-              lines = [l for l in text.strip().split("\n")[1:] if l.strip()]
-              closes = [float(l.split(",")[4]) for l in lines]
-              closes = [v for v in closes if v > 0]
-              current = closes[-1]
-              high52  = max(closes)
-              drop    = (high52 - current) / high52 * 100
-              return {"current": round(current, 2), "high52": round(high52, 2), "dropPct": round(drop, 4)}
+                  data = json.loads(r.read().decode("utf-8"))
+              result = data["chart"]["result"][0]
+              current = result["meta"]["regularMarketPrice"]
+              timestamps = result["timestamp"]
+              closes = result["indicators"]["quote"][0]["close"]
+              history = []
+              for ts, c in zip(timestamps, closes):
+                  if c is not None and c > 0:
+                      date_str = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d")
+                      history.append({"date": date_str, "close": round(c, 2)})
+              closes_valid = [h["close"] for h in history]
+              high52 = max(closes_valid)
+              drop = (high52 - current) / high52 * 100
+              return {"current": round(current, 2), "high52": round(high52, 2), "dropPct": round(drop, 4), "history": history}
+
+          def fetch_yahoo2(symbol):
+              url = f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}?range=1y&interval=1d"
+              req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"})
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  data = json.loads(r.read().decode("utf-8"))
+              result = data["chart"]["result"][0]
+              current = result["meta"]["regularMarketPrice"]
+              timestamps = result["timestamp"]
+              closes = result["indicators"]["quote"][0]["close"]
+              history = []
+              for ts, c in zip(timestamps, closes):
+                  if c is not None and c > 0:
+                      date_str = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d")
+                      history.append({"date": date_str, "close": round(c, 2)})
+              closes_valid = [h["close"] for h in history]
+              high52 = max(closes_valid)
+              drop = (high52 - current) / high52 * 100
+              return {"current": round(current, 2), "high52": round(high52, 2), "dropPct": round(drop, 4), "history": history}
+
+          # 通知しきい値設定ファイルを読み込む
+          try:
+              with open("notify-config.json") as f:
+                  cfg = json.load(f)
+          except:
+              cfg = {"breakpoints": [5, 10, 15, 20], "pcts": [0, 10, 20, 35, 50], "cash": 0}
+
+          def get_invest_pct(drop, cfg):
+              br = cfg["breakpoints"]
+              pc = cfg["pcts"]
+              if drop < br[0]: return pc[0]
+              if drop < br[1]: return pc[1]
+              if drop < br[2]: return pc[2]
+              if drop < br[3]: return pc[3]
+              return pc[4]
+
+          def drop_label(drop, cfg):
+              br = cfg["breakpoints"]
+              pc = cfg["pcts"]
+              ip = get_invest_pct(drop, cfg)
+              if ip <= 0: return "様子見"
+              if drop < br[0]: return "少額投資タイミング"
+              if drop < br[1]: return "少額投資タイミング"
+              if drop < br[2]: return "中程度の投資タイミング ⚠️"
+              if drop < br[3]: return "積極投資タイミング 🔔"
+              return "最大投資タイミング 🚨"
+
+          # USDJPY=X の日次履歴を取得して {date: rate} マップを構築
+          fx_map = {}
+          fx_current = None
+          for fn in [fetch_yahoo, fetch_yahoo2]:
+              try:
+                  fx = fn("USDJPY=X")
+                  fx_current = fx["current"]
+                  for h in fx["history"]:
+                      fx_map[h["date"]] = h["close"]
+                  print(f"USDJPY=X: {fx_current:.2f}")
+                  break
+              except Exception as e:
+                  print(f"ERROR USDJPY=X: {e}", file=sys.stderr)
 
           result = {}
           for sym in ["VT", "VOO"]:
-              try:
-                  result[sym] = fetch(sym)
-                  print(f"{sym}: {result[sym]}")
-              except Exception as e:
-                  print(f"ERROR {sym}: {e}", file=sys.stderr)
+              for fn in [fetch_yahoo, fetch_yahoo2]:
+                  try:
+                      data = fn(sym)
+                      # 円建て計算
+                      if fx_map and fx_current:
+                          history_jpy = []
+                          for h in data["history"]:
+                              rate = fx_map.get(h["date"])
+                              if rate:
+                                  history_jpy.append({"date": h["date"], "close": round(h["close"] * rate, 0)})
+                          if history_jpy:
+                              closes_jpy = [h["close"] for h in history_jpy]
+                              high52_jpy = max(closes_jpy)
+                              current_jpy = data["current"] * fx_current
+                              drop_jpy = (high52_jpy - current_jpy) / high52_jpy * 100
+                              data["currentJpy"] = round(current_jpy, 0)
+                              data["high52Jpy"] = round(high52_jpy, 0)
+                              data["dropPctJpy"] = round(drop_jpy, 4)
+                              data["historyJpy"] = history_jpy
+                      result[sym] = data
+                      jpy_str = f" / 円建て {data.get('dropPctJpy', 'N/A'):.2f}%" if "dropPctJpy" in data else ""
+                      print(f"{sym}: {data['current']} (USD下落率 {data['dropPct']:.2f}%{jpy_str})")
+                      break
+                  except Exception as e:
+                      print(f"ERROR {sym}: {e}", file=sys.stderr)
 
-          result["updatedAt"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+          if fx_current:
+              result["USDJPY"] = {"current": round(fx_current, 2)}
+
+          result["updatedAt"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
           with open("prices.json", "w") as f:
               json.dump(result, f, indent=2)
           print("Saved prices.json")
+
+          # LINE Messaging API通知
+          channel_token = os.environ.get("LINE_CHANNEL_TOKEN", "")
+          user_id = os.environ.get("LINE_USER_ID", "")
+          if not channel_token or not user_id:
+              print("LINE_CHANNEL_TOKEN または LINE_USER_ID 未設定のためLINE通知スキップ")
+          else:
+              cash = cfg.get("cash", 0)
+              ticker_amounts = cfg.get("tickerAmounts", {})
+              grand_total = sum(ticker_amounts.values()) if ticker_amounts else 0
+
+              # 投資対象ティッカーと各投資割合を決定
+              triggered = {}  # sym -> ip
+              for sym in ["VT", "VOO"]:
+                  if sym not in result:
+                      continue
+                  d = result[sym].get("dropPctJpy") if result[sym].get("dropPctJpy") is not None else result[sym]["dropPct"]
+                  ip = get_invest_pct(d, cfg)
+                  if ip > 0:
+                      triggered[sym] = ip
+
+              # 最大投資割合（複数ティッカーが条件を満たす場合、最大値を使用）
+              max_ip = max(triggered.values()) if triggered else 0
+              total_invest = cash * max_ip / 100 if cash > 0 else 0
+
+              lines = ["📊 NISA投資アドバイス（本日の状況）\n"]
+              should_notify = bool(triggered)
+              fx_str = f"（1USD={result['USDJPY']['current']:.0f}円）" if "USDJPY" in result else ""
+              for sym in ["VT", "VOO"]:
+                  if sym not in result:
+                      lines.append(f"  {sym}: 取得失敗")
+                      continue
+                  d_jpy = result[sym].get("dropPctJpy")
+                  d = d_jpy if d_jpy is not None else result[sym]["dropPct"]
+                  ip = get_invest_pct(d, cfg)
+                  lbl = drop_label(d, cfg)
+                  if d_jpy is not None:
+                      lines.append(f"  {sym}: ${result[sym]['current']} ≈ ¥{result[sym].get('currentJpy', 0):,.0f} (円建て -{d:.2f}%){fx_str}")
+                  else:
+                      lines.append(f"  {sym}: ${result[sym]['current']} (高値比 -{d:.2f}%)")
+                  if ip > 0 and cash > 0 and total_invest > 0:
+                      # 評価額比率で按分
+                      sym_amount = ticker_amounts.get(sym, 0)
+                      if grand_total > 0 and sym_amount > 0:
+                          ratio = sym_amount / grand_total
+                          sym_invest = int(round(total_invest * ratio))
+                      else:
+                          # 評価額不明の場合は均等按分
+                          sym_invest = int(round(total_invest / len(triggered)))
+                      lines.append(f"    → {lbl}")
+                      lines.append(f"      推奨投資額: 約{sym_invest:,}円")
+                  elif ip > 0:
+                      lines.append(f"    → {lbl}（買い付け余力の{ip}%投資推奨）")
+                  else:
+                      lines.append(f"    → {lbl}")
+
+              if cash > 0 and total_invest > 0:
+                  lines.append(f"\n買い付け余力: {int(round(cash)):,}円 → 合計 約{int(round(total_invest)):,}円を投資推奨")
+              elif cash > 0:
+                  lines.append(f"\n（買い付け余力: {int(round(cash)):,}円）")
+
+              if should_notify:
+                  lines.insert(1, "💡 投資タイミングが来ています！\n")
+              else:
+                  lines.insert(1, "現在は様子見です。\n")
+
+              lines.append(f"\n更新: {result['updatedAt']}")
+              msg = "\n".join(lines)
+
+              try:
+                  payload = json.dumps({
+                      "to": user_id,
+                      "messages": [{"type": "text", "text": msg}]
+                  }).encode("utf-8")
+                  req = urllib.request.Request(
+                      "https://api.line.me/v2/bot/message/push",
+                      data=payload,
+                      headers={
+                          "Authorization": f"Bearer {channel_token}",
+                          "Content-Type": "application/json"
+                      }
+                  )
+                  with urllib.request.urlopen(req, timeout=15) as r:
+                      print(f"LINE通知送信完了: {r.status}")
+              except Exception as e:
+                  print(f"LINE通知失敗: {e}", file=sys.stderr)
+
+          if "VT" not in result or "VOO" not in result:
+              sys.exit(1)
           EOF
 
       - name: Commit and push
