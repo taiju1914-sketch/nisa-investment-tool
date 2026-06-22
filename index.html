@@ -675,14 +675,8 @@ async function fetchMarketData() {
   for (const ticker of tickers) {
     const info = pricesData && pricesData[ticker] ? pricesData[ticker] : null;
     if (info) {
-<<<<<<< Updated upstream
-      state.tickerDrops[ticker] = info.dropPct;
-=======
       state.tickerDrops[ticker] = info.dropPctJpy != null ? info.dropPctJpy : info.dropPct;
       state.tickerDropsJpy[ticker] = info.dropPctJpy ?? null;
-      if (info.historyJpy) priceHistory[ticker] = info.historyJpy;
-      else if (info.history) priceHistory[ticker] = info.history;
->>>>>>> Stashed changes
       renderTickerData(ticker, info);
       successCount++;
     } else {
