@@ -1,13 +1,9 @@
 {
   "VT": {
-    "current": 155.81,
+    "current": 156.78,
     "high52": 159.35,
-    "dropPct": 2.2215,
+    "dropPct": 1.6128,
     "history": [
-      {
-        "date": "2025-07-14",
-        "close": 129.47
-      },
       {
         "date": "2025-07-15",
         "close": 128.81
@@ -1009,14 +1005,10 @@
         "close": 155.81
       }
     ],
-    "currentJpy": 25288.0,
+    "currentJpy": 25423.0,
     "high52Jpy": 25579.0,
-    "dropPctJpy": 1.1378,
+    "dropPctJpy": 0.6081,
     "historyJpy": [
-      {
-        "date": "2025-07-14",
-        "close": 19134.0
-      },
       {
         "date": "2025-07-15",
         "close": 19162.0
@@ -1904,18 +1896,18 @@
       {
         "date": "2026-07-09",
         "close": 25491.0
+      },
+      {
+        "date": "2026-07-13",
+        "close": 25308.0
       }
     ]
   },
   "VOO": {
-    "current": 688.5,
+    "current": 691.1,
     "high52": 698.26,
-    "dropPct": 1.3978,
+    "dropPct": 1.0254,
     "history": [
-      {
-        "date": "2025-07-14",
-        "close": 574.35
-      },
       {
         "date": "2025-07-15",
         "close": 571.86
@@ -2917,14 +2909,10 @@
         "close": 688.5
       }
     ],
-    "currentJpy": 111744.0,
+    "currentJpy": 112069.0,
     "high52Jpy": 112140.0,
-    "dropPctJpy": 0.3535,
+    "dropPctJpy": 0.0635,
     "historyJpy": [
-      {
-        "date": "2025-07-14",
-        "close": 84883.0
-      },
       {
         "date": "2025-07-15",
         "close": 85070.0
@@ -3812,11 +3800,15 @@
       {
         "date": "2026-07-09",
         "close": 112140.0
+      },
+      {
+        "date": "2026-07-13",
+        "close": 111833.0
       }
     ]
   },
   "USDJPY": {
-    "current": 162.3
+    "current": 162.16
   },
-  "updatedAt": "2026-07-14T04:17:53Z"
+  "updatedAt": "2026-07-15T04:17:47Z"
 }
